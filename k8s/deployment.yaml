@@ -3,103 +3,6 @@ kind: Namespace
 metadata:
   name: tictactoe
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: tictactoe-html
-  namespace: tictactoe
-data:
-  index.html: |
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Tic Tac Toe</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-          font-family: 'Segoe UI', sans-serif;
-          color: #fff;
-        }
-        h1 { font-size: 2.5rem; margin-bottom: 1rem; text-shadow: 0 0 20px #e94560; }
-        .status { font-size: 1.3rem; margin-bottom: 1.5rem; min-height: 2rem; color: #e94560; }
-        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; }
-        .cell {
-          width: 100px; height: 100px;
-          background: rgba(255,255,255,0.1);
-          border: 2px solid #e94560;
-          border-radius: 10px;
-          font-size: 3rem; font-weight: bold;
-          cursor: pointer;
-          transition: all 0.3s;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .cell:hover { background: rgba(233,69,96,0.2); transform: scale(1.05); }
-        .cell.x { color: #00fff5; text-shadow: 0 0 15px #00fff5; }
-        .cell.o { color: #e94560; text-shadow: 0 0 15px #e94560; }
-        .cell.win { animation: pulse 0.5s infinite alternate; }
-        @keyframes pulse { to { transform: scale(1.1); } }
-        button {
-          margin-top: 1.5rem; padding: 12px 30px; font-size: 1rem;
-          background: #e94560; color: #fff; border: none;
-          border-radius: 25px; cursor: pointer; transition: all 0.3s;
-        }
-        button:hover { background: #ff6b6b; transform: scale(1.05); }
-      </style>
-    </head>
-    <body>
-      <h1>⚡ Tic Tac Toe ⚡</h1>
-      <div class="status" id="status">X's turn</div>
-      <div class="board" id="board"></div>
-      <button onclick="reset()">New Game</button>
-      <script>
-        const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-        let board, turn, over;
-        function init() {
-          board = Array(9).fill('');
-          turn = 'X';
-          over = false;
-          document.getElementById('status').textContent = "X's turn";
-          const el = document.getElementById('board');
-          el.innerHTML = '';
-          for (let i = 0; i < 9; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.onclick = () => play(i, cell);
-            el.appendChild(cell);
-          }
-        }
-        function play(i, cell) {
-          if (board[i] || over) return;
-          board[i] = turn;
-          cell.textContent = turn;
-          cell.classList.add(turn.toLowerCase());
-          const win = wins.find(w => w.every(j => board[j] === turn));
-          if (win) {
-            over = true;
-            document.getElementById('status').textContent = '🎉 ' + turn + ' wins!';
-            win.forEach(j => document.getElementById('board').children[j].classList.add('win'));
-          } else if (board.every(c => c)) {
-            over = true;
-            document.getElementById('status').textContent = "It's a draw!";
-          } else {
-            turn = turn === 'X' ? 'O' : 'X';
-            document.getElementById('status').textContent = turn + "'s turn";
-          }
-        }
-        function reset() { init(); }
-        init();
-      </script>
-    </body>
-    </html>
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -117,16 +20,9 @@ spec:
     spec:
       containers:
       - name: tictactoe
-        image: nginx:alpine
+        image: ghcr.io/pnz1990/tictactoe-k8s:v1
         ports:
         - containerPort: 80
-        volumeMounts:
-        - name: html
-          mountPath: /usr/share/nginx/html
-      volumes:
-      - name: html
-        configMap:
-          name: tictactoe-html
 ---
 apiVersion: v1
 kind: Service
