@@ -6,3 +6,4 @@ resources:
 - networkpolicy.yaml
 - pdb.yaml
 - nginx-config.yaml
+- ingress.yaml
