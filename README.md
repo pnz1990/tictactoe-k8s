@@ -259,12 +259,43 @@ This creates image tags: `v1.0.0`, `1.0.0`, `1.0`, `latest`
 ## Security Features
 
 ### Supply Chain Security
+
+**SBOM (Software Bill of Materials)**
+
+SBOM is automatically generated and attached to every image build:
+```bash
+# View SBOM attestation
+cosign download attestation ghcr.io/pnz1990/tictactoe-k8s:latest | jq -r '.payload' | base64 -d | jq '.predicate'
+```
+
+**Image Signing**
 ```bash
 # Verify image signature
 cosign verify ghcr.io/pnz1990/tictactoe-k8s:latest \
   --certificate-identity-regexp=".*" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 ```
+
+### Automated Dependency Updates (Renovate)
+
+Renovate is configured to automatically create PRs for:
+- Base image updates (Chainguard nginx)
+- Init container updates (busybox)
+- GitHub Actions updates
+- Prometheus exporter updates
+
+Configuration: [`renovate.json`](renovate.json)
+
+| Dependency | Auto-merge | Notes |
+|------------|------------|-------|
+| Chainguard nginx | ❌ | Manual review required |
+| busybox | ✅ | Auto-merged |
+| GitHub Actions | ✅ | Auto-merged |
+| Prometheus exporter | ❌ | Manual review required |
+
+To enable Renovate:
+1. Install [Renovate GitHub App](https://github.com/apps/renovate)
+2. Grant access to this repository
 
 ### Container Security
 - ✅ Distroless base image (no shell, no package manager)
@@ -374,6 +405,12 @@ kubectl kustomize k8s/overlays/prod
 - [x] Network policies
 - [x] Pod disruption budget
 - [x] Kustomize overlays (dev/staging/prod)
+
+### Security
+- [x] SBOM generation (attached to image)
+- [x] Renovate for automated base image updates
+- [x] Image signing (cosign)
+- [x] Vulnerability scanning (Trivy)
 
 ### Observability
 - [x] Prometheus metrics endpoint (nginx-prometheus-exporter sidecar)

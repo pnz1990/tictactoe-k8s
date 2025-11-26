@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "dockerfile": {
+    "fileMatch": ["app/Dockerfile"]
+  },
+  "kubernetes": {
+    "fileMatch": ["k8s/.+\\.yaml$"]
+  },
+  "packageRules": [
+    {
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["cgr.dev/chainguard/nginx"],
+      "groupName": "chainguard nginx",
+      "automerge": false
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["busybox"],
+      "groupName": "busybox",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "matchManagers": ["kubernetes"],
+      "matchPackageNames": ["nginx/nginx-prometheus-exporter"],
+      "groupName": "prometheus exporter",
+      "automerge": false
+    }
+  ],
+  "prHourlyLimit": 5,
+  "prConcurrentLimit": 3,
+  "labels": ["dependencies", "automated"]
+}
