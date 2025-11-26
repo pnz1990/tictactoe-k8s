@@ -30,13 +30,17 @@ A production-ready reference application demonstrating modern DevOps and Kuberne
                 ▼                         ┌───────────────────────────────────┐
 ┌───────────────────────────┐             │        Kubernetes Cluster         │
 │  GitHub Container Registry │             │  ┌─────────────────────────────┐  │
-│  (ghcr.io)                │             │  │ Namespace: tictactoe-dev    │  │
-│  ┌─────────────────────┐  │             │  │  ├── Deployment (1 replica) │  │
-│  │ Signed Images       │  │────────────▶│  │  ├── Service               │  │
-│  │ SBOM Attached       │  │             │  │  ├── NetworkPolicy         │  │
-│  │ Vulnerability Scanned│  │             │  │  └── PodDisruptionBudget   │  │
-│  └─────────────────────┘  │             │  └─────────────────────────────┘  │
-└───────────────────────────┘             └───────────────────────────────────┘
+│  (ghcr.io)                │             │  │ tictactoe-dev (1 replica)   │  │
+│  ┌─────────────────────┐  │             │  │ tictactoe-staging (2)       │  │
+│  │ Signed Images       │  │────────────▶│  │ tictactoe-prod (3)          │  │
+│  │ SBOM Attached       │  │             │  └─────────────────────────────┘  │
+│  │ Vulnerability Scanned│  │             │                │                  │
+│  └─────────────────────┘  │             │                ▼                  │
+└───────────────────────────┘             │  ┌─────────────────────────────┐  │
+                                          │  │ Grafana Alloy → AMP         │  │
+                                          │  │ Fluent Bit → CloudWatch     │  │
+                                          │  └─────────────────────────────┘  │
+                                          └───────────────────────────────────┘
 ```
 
 ## Features
@@ -72,8 +76,8 @@ A production-ready reference application demonstrating modern DevOps and Kuberne
 |---------|-------------|
 | **Resource Limits** | CPU/memory requests and limits defined |
 | **Health Probes** | Liveness and readiness probes configured |
-| **Security Context** | Non-root, read-only filesystem, dropped capabilities |
-| **Network Policy** | Ingress restricted to port 8080, egress to DNS only |
+| **Security Context** | Non-root, read-only filesystem, dropped capabilities, seccomp |
+| **Network Policy** | Ingress on 8080/9113, egress to DNS only |
 | **Pod Disruption Budget** | Ensures availability during cluster maintenance |
 | **Kustomize Overlays** | Environment-specific configs (dev/staging/prod) |
 
@@ -83,7 +87,7 @@ A production-ready reference application demonstrating modern DevOps and Kuberne
 tictactoe-k8s/
 ├── app/
 │   ├── index.html          # Tic Tac Toe game
-│   └── Dockerfile          # Container build instructions
+│   └── Dockerfile          # Multi-stage build with Chainguard nginx
 ├── k8s/
 │   ├── base/               # Shared Kubernetes manifests
 │   │   ├── deployment.yaml
@@ -98,6 +102,7 @@ tictactoe-k8s/
 ├── .github/
 │   └── workflows/
 │       └── build.yaml      # CI/CD pipeline
+├── renovate.json           # Automated dependency updates
 └── README.md
 ```
 
@@ -110,8 +115,6 @@ tictactoe-k8s/
 | prod        | 3        | 100m        | 500m      | 32Mi           | 128Mi        | 2                 |
 
 ## Branch-Based Promotion Workflow
-
-This project uses a branch-based GitOps promotion strategy:
 
 ```
 ┌─────────────┐     merge      ┌─────────────┐     merge      ┌─────────────┐
@@ -137,14 +140,10 @@ This project uses a branch-based GitOps promotion strategy:
 
 ```bash
 # Promote dev → staging
-git checkout staging
-git merge main
-git push
+git checkout staging && git merge main && git push
 
 # Promote staging → prod
-git checkout prod
-git merge staging
-git push
+git checkout prod && git merge staging && git push
 ```
 
 ### ArgoCD Applications
@@ -158,7 +157,7 @@ git push
 ## Quick Start
 
 ### Prerequisites
-- Kubernetes cluster
+- Kubernetes cluster (EKS recommended)
 - ArgoCD installed
 - `kubectl` configured
 
@@ -260,15 +259,7 @@ This creates image tags: `v1.0.0`, `1.0.0`, `1.0`, `latest`
 
 ### Supply Chain Security
 
-**SBOM (Software Bill of Materials)**
-
-SBOM is automatically generated and attached to every image build:
-```bash
-# View SBOM attestation
-cosign download attestation ghcr.io/pnz1990/tictactoe-k8s:latest | jq -r '.payload' | base64 -d | jq '.predicate'
-```
-
-**Image Signing**
+**Image Signing (Cosign)**
 ```bash
 # Verify image signature
 cosign verify ghcr.io/pnz1990/tictactoe-k8s:latest \
@@ -276,15 +267,15 @@ cosign verify ghcr.io/pnz1990/tictactoe-k8s:latest \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 ```
 
+**SBOM (Software Bill of Materials)**
+```bash
+# View SBOM attestation
+cosign download attestation ghcr.io/pnz1990/tictactoe-k8s:latest | jq -r '.payload' | base64 -d | jq '.predicate'
+```
+
 ### Automated Dependency Updates (Renovate)
 
-Renovate is configured to automatically create PRs for:
-- Base image updates (Chainguard nginx)
-- Init container updates (busybox)
-- GitHub Actions updates
-- Prometheus exporter updates
-
-Configuration: [`renovate.json`](renovate.json)
+Renovate automatically creates PRs for dependency updates:
 
 | Dependency | Auto-merge | Notes |
 |------------|------------|-------|
@@ -293,15 +284,12 @@ Configuration: [`renovate.json`](renovate.json)
 | GitHub Actions | ✅ | Auto-merged |
 | Prometheus exporter | ❌ | Manual review required |
 
-To enable Renovate:
-1. Install [Renovate GitHub App](https://github.com/apps/renovate)
-2. Grant access to this repository
-
 ### Container Security
 - ✅ Distroless base image (no shell, no package manager)
 - ✅ Non-root user (UID 65532)
 - ✅ Read-only root filesystem
 - ✅ All capabilities dropped
+- ✅ Seccomp profile (RuntimeDefault)
 - ✅ No privilege escalation
 
 ### Kubernetes Security
@@ -310,17 +298,14 @@ To enable Renovate:
 - ✅ Resource limits prevent DoS
 - ✅ Health probes ensure availability
 
-## Monitoring & Observability
+## Observability
 
 ### Prometheus Metrics
 
-The application exposes metrics via nginx-prometheus-exporter sidecar on port 9113.
+Metrics exposed via nginx-prometheus-exporter sidecar on port 9113:
 
 ```bash
-# Port-forward to access metrics
 kubectl port-forward -n tictactoe-dev svc/tictactoe 9113:9113
-
-# View metrics
 curl localhost:9113/metrics
 ```
 
@@ -331,17 +316,40 @@ curl localhost:9113/metrics
 - `nginx_http_requests_total` - Total HTTP requests
 - `nginx_up` - Nginx health status
 
-**Prometheus Annotations** (auto-discovery):
+**Pod Annotations** (auto-discovery):
 ```yaml
 prometheus.io/scrape: "true"
 prometheus.io/port: "9113"
 prometheus.io/path: "/metrics"
 ```
 
+### Metrics Collection (Grafana Alloy → AMP)
+
+Metrics are collected by Grafana Alloy and sent to Amazon Managed Prometheus:
+- **AMP Workspace**: `ws-62f6ab4b-6a1c-4971-806e-dee13a1e1e95`
+- **Region**: ap-northeast-2
+- **Labels**: namespace, pod, app automatically added
+
+### Log Collection (Fluent Bit → CloudWatch)
+
+Logs are collected by Fluent Bit DaemonSet and sent to CloudWatch Logs:
+- **Log Group**: `/eks/tictactoe`
+- **Log Streams**: Per namespace (tictactoe-dev, tictactoe-staging, tictactoe-prod)
+
+### Grafana Dashboards (Amazon Managed Grafana)
+
+Pre-built dashboards available at AMG workspace `g-8f648e108c`:
+
+| Dashboard | Path | Description |
+|-----------|------|-------------|
+| Tic Tac Toe - DEV | `/d/ff58o5r40bl6oa` | Dev environment metrics |
+| Tic Tac Toe - STAGING | `/d/bf58o6pd8jf9cd` | Staging environment metrics |
+| Tic Tac Toe - PROD | `/d/df58o7xz29hq8f` | Production environment metrics |
+| Tic Tac Toe - Logs | `/d/af58pcjfql7nkc` | CloudWatch logs viewer |
+
 ### Structured Logging
 
-Logs are output in JSON format for easy parsing by log aggregators (Fluentd, Loki, CloudWatch, etc.):
-
+Logs output in JSON format:
 ```json
 {
   "time": "2025-11-26T00:30:51+00:00",
@@ -350,15 +358,8 @@ Logs are output in JSON format for easy parsing by log aggregators (Fluentd, Lok
   "uri": "/index.html",
   "status": 200,
   "body_bytes_sent": 3241,
-  "request_time": 0.000,
-  "http_referer": "",
-  "http_user_agent": "Mozilla/5.0..."
+  "request_time": 0.000
 }
-```
-
-```bash
-# View logs
-kubectl logs -n tictactoe-dev deploy/tictactoe -c tictactoe
 ```
 
 ### Health Endpoints
@@ -371,57 +372,59 @@ kubectl logs -n tictactoe-dev deploy/tictactoe -c tictactoe
 ### Local Testing
 
 ```bash
-# Build locally
 cd app
 docker build -t tictactoe:local .
-
-# Run locally
 docker run -p 8080:8080 tictactoe:local
-
 # Open http://localhost:8080
 ```
 
 ### Preview Kustomize Output
 
 ```bash
-# View rendered manifests
 kubectl kustomize k8s/overlays/dev
 kubectl kustomize k8s/overlays/prod
 ```
 
-## Best Practices Implemented
+## Best Practices Checklist
 
 ### CI/CD & Image
 - [x] Multi-stage Dockerfile with non-root user
-- [x] Image vulnerability scanning (Trivy)
+- [x] Image vulnerability scanning (Trivy → GitHub Security tab)
 - [x] Semantic versioning with git tags
-- [x] Sign images with cosign
-- [x] SBOM generation
+- [x] Image signing (Cosign keyless via GitHub OIDC)
+- [x] SBOM generation (attached to image)
+- [x] Build caching
 
 ### Kubernetes Manifests
 - [x] Resource limits/requests
 - [x] Liveness/readiness probes
-- [x] Security context (non-root, read-only filesystem)
+- [x] Security context (non-root, read-only filesystem, seccomp)
 - [x] Network policies
 - [x] Pod disruption budget
 - [x] Kustomize overlays (dev/staging/prod)
 
 ### Security
-- [x] SBOM generation (attached to image)
-- [x] Renovate for automated base image updates
-- [x] Image signing (cosign)
-- [x] Vulnerability scanning (Trivy)
+- [x] Renovate for automated dependency updates
+- [x] Distroless base image (Chainguard)
+- [x] All capabilities dropped
+- [x] No privilege escalation
 
 ### Observability
-- [x] Prometheus metrics endpoint (nginx-prometheus-exporter sidecar)
+- [x] Prometheus metrics (nginx-prometheus-exporter sidecar)
+- [x] Metrics collection (Grafana Alloy → AMP)
+- [x] Log collection (Fluent Bit → CloudWatch)
+- [x] Grafana dashboards (per environment + logs)
 - [x] Structured JSON logging
-- [x] Health endpoints (/healthz)
+- [x] Health endpoints
 
 ### GitOps
-- [x] ArgoCD auto-sync
-- [x] Self-healing enabled
+- [x] ArgoCD auto-sync with self-healing
 - [x] Pruning enabled
 - [x] Branch-based promotion (main → staging → prod)
+
+## Related Repositories
+
+- **[eks-infrastructure](https://github.com/pnz1990/eks-infrastructure)** - AWS managed services (AMP, Grafana Alloy, Fluent Bit) provisioned via GitOps
 
 ## License
 
