@@ -46,7 +46,7 @@ jobs:
           chmod +x tests/policies/test-dockerfiles.sh
           ./tests/policies/test-dockerfiles.sh
       - name: Hadolint
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: backend/Dockerfile
           failure-threshold: error
