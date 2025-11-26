@@ -17,13 +17,13 @@ spec:
       "panels": [
         {
           "id": 1,
-          "title": "🏆 Leaderboard - Top Players by Wins",
+          "title": "🏆 Leaderboard - Top Players by Wins (24h)",
           "type": "table",
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
           "targets": [{
             "refId": "A",
-            "expr": "topk(10, sum by (player) (tictactoe_wins_total{namespace=\"tictactoe-prod\"}))",
+            "expr": "topk(10, sum by (player) (increase(tictactoe_wins_total{namespace=\"tictactoe-prod\"}[24h])))",
             "legendFormat": "{{player}}",
             "instant": true,
             "format": "table"
@@ -35,38 +35,38 @@ spec:
         },
         {
           "id": 2,
-          "title": "📊 Total Games Played",
+          "title": "📊 Total Games (24h)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "sum(tictactoe_games_total{namespace=\"tictactoe-prod\"})"}],
+          "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-prod\"}[24h]))"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "blue", "value": null}]}}}
         },
         {
           "id": 3,
-          "title": "🎯 Total Wins",
+          "title": "🎯 Total Wins (24h)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "sum(tictactoe_games_total{namespace=\"tictactoe-prod\", result=\"win\"})"}],
+          "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-prod\", result=\"win\"}[24h]))"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}}
         },
         {
           "id": 4,
-          "title": "🤝 Total Ties",
+          "title": "🤝 Total Ties (24h)",
           "type": "stat",
           "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "tictactoe_ties_total{namespace=\"tictactoe-prod\"}"}],
+          "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_ties_total{namespace=\"tictactoe-prod\"}[24h]))"}],
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "yellow", "value": null}]}}}
         },
         {
           "id": 5,
-          "title": "🎲 Winning Patterns Distribution",
+          "title": "🎲 Winning Patterns (24h)",
           "type": "piechart",
           "gridPos": {"h": 8, "w": 8, "x": 12, "y": 4},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "sum by (pattern) (tictactoe_wins_total{namespace=\"tictactoe-prod\"})", "legendFormat": "{{pattern}}"}],
+          "targets": [{"refId": "A", "expr": "sum by (pattern) (increase(tictactoe_wins_total{namespace=\"tictactoe-prod\"}[24h]))", "legendFormat": "{{pattern}}"}],
           "options": {"legend": {"displayMode": "table", "placement": "right"}}
         },
         {
@@ -76,8 +76,8 @@ spec:
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
           "targets": [
-            {"refId": "A", "expr": "sum(rate(tictactoe_games_total{namespace=\"tictactoe-prod\", result=\"win\"}[5m])) * 300", "legendFormat": "Wins"},
-            {"refId": "B", "expr": "sum(rate(tictactoe_games_total{namespace=\"tictactoe-prod\", result=\"tie\"}[5m])) * 300", "legendFormat": "Ties"}
+            {"refId": "A", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-prod\", result=\"win\"}[1h]))", "legendFormat": "Wins/hr"},
+            {"refId": "B", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-prod\", result=\"tie\"}[1h]))", "legendFormat": "Ties/hr"}
           ],
           "fieldConfig": {"defaults": {"unit": "short"}}
         },
@@ -93,21 +93,21 @@ spec:
         },
         {
           "id": 8,
-          "title": "👥 Most Active Players",
+          "title": "👥 Most Active Players (24h)",
           "type": "bargauge",
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "topk(10, sum by (player) (tictactoe_player_games_total{namespace=\"tictactoe-prod\"}))", "legendFormat": "{{player}}"}],
+          "targets": [{"refId": "A", "expr": "topk(10, sum by (player) (increase(tictactoe_player_games_total{namespace=\"tictactoe-prod\"}[24h])))", "legendFormat": "{{player}}"}],
           "options": {"orientation": "horizontal", "displayMode": "gradient"},
           "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlPu"}}}
         },
         {
           "id": 9,
-          "title": "📊 Win Rate by Pattern",
+          "title": "📊 Win Rate by Pattern (24h)",
           "type": "barchart",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "sort_desc(sum by (pattern) (tictactoe_wins_total{namespace=\"tictactoe-prod\"}))", "legendFormat": "{{pattern}}", "instant": true}],
+          "targets": [{"refId": "A", "expr": "sort_desc(sum by (pattern) (increase(tictactoe_wins_total{namespace=\"tictactoe-prod\"}[24h])))", "legendFormat": "{{pattern}}", "instant": true}],
           "options": {"orientation": "horizontal"},
           "transformations": [{"id": "sortBy", "options": {"sort": [{"field": "Value", "desc": true}]}}]
         }
