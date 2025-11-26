@@ -107,8 +107,9 @@ spec:
           "type": "barchart",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
-          "targets": [{"refId": "A", "expr": "sum by (pattern) (tictactoe_wins_total{namespace=\"tictactoe-prod\"})", "legendFormat": "{{pattern}}", "instant": true}],
-          "options": {"orientation": "horizontal"}
+          "targets": [{"refId": "A", "expr": "sort_desc(sum by (pattern) (tictactoe_wins_total{namespace=\"tictactoe-prod\"}))", "legendFormat": "{{pattern}}", "instant": true}],
+          "options": {"orientation": "horizontal"},
+          "transformations": [{"id": "sortBy", "options": {"sort": [{"field": "Value", "desc": true}]}}]
         }
       ]
     }
