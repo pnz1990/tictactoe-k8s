@@ -3,8 +3,3 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
-- networkpolicy.yaml
-- pdb.yaml
-- nginx-config.yaml
-- ingress.yaml
-- backend/

@@ -3,30 +3,26 @@ name: Build and Push
 on:
   push:
     branches: [main]
-    paths: [app/**]
+    paths: 
+      - 'app/**'
+      - 'backend/**'
     tags: ['v*']
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  frontend:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
       security-events: write
-
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -36,14 +32,12 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Build and push frontend
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -51,37 +45,69 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          sbom: true
-          provenance: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.build.outputs.digest }}
           format: sarif
-          output: trivy-results.sarif
-
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v4
+          output: trivy-frontend.sarif
+      - uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: trivy-frontend.sarif
+          category: frontend
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign frontend
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.build.outputs.digest }}
 
-      - name: Install syft
-        uses: anchore/sbom-action/download-syft@v0
+  backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Sign image with cosign
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-backend
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Generate and attach SBOM
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          syft ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST} -o spdx-json > sbom.spdx.json
-          cosign attest --yes --predicate sbom.spdx.json --type spdx ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}
+      - name: Build and push backend
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy-backend.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend.sarif
+          category: backend
+
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign backend
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}

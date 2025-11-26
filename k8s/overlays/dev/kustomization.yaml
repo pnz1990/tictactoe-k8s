@@ -5,6 +5,7 @@ resources:
 - ../../base
 - namespace.yaml
 - grafana/dashboard.yaml
+- grafana/business-dashboard.yaml
 patches:
 - patch: |-
     - op: replace
