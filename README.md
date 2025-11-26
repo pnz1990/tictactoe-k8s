@@ -109,6 +109,52 @@ tictactoe-k8s/
 | staging     | 2        | 50m         | 200m      | 16Mi           | 64Mi         | 1                 |
 | prod        | 3        | 100m        | 500m      | 32Mi           | 128Mi        | 2                 |
 
+## Branch-Based Promotion Workflow
+
+This project uses a branch-based GitOps promotion strategy:
+
+```
+┌─────────────┐     merge      ┌─────────────┐     merge      ┌─────────────┐
+│    main     │ ─────────────▶ │   staging   │ ─────────────▶ │    prod     │
+│   (dev)     │                │             │                │             │
+└─────────────┘                └─────────────┘                └─────────────┘
+       │                              │                              │
+       ▼                              ▼                              ▼
+┌─────────────┐                ┌─────────────┐                ┌─────────────┐
+│ tictactoe   │                │ tictactoe-  │                │ tictactoe-  │
+│ (ArgoCD)    │                │ staging     │                │ prod        │
+└─────────────┘                └─────────────┘                └─────────────┘
+       │                              │                              │
+       ▼                              ▼                              ▼
+┌─────────────┐                ┌─────────────┐                ┌─────────────┐
+│ tictactoe-  │                │ tictactoe-  │                │ tictactoe-  │
+│ dev (ns)    │                │ staging(ns) │                │ prod (ns)   │
+│ 1 replica   │                │ 2 replicas  │                │ 3 replicas  │
+└─────────────┘                └─────────────┘                └─────────────┘
+```
+
+### Promotion Commands
+
+```bash
+# Promote dev → staging
+git checkout staging
+git merge main
+git push
+
+# Promote staging → prod
+git checkout prod
+git merge staging
+git push
+```
+
+### ArgoCD Applications
+
+| App Name | Branch | Overlay | Namespace | Replicas |
+|----------|--------|---------|-----------|----------|
+| tictactoe | main | dev | tictactoe-dev | 1 |
+| tictactoe-staging | staging | staging | tictactoe-staging | 2 |
+| tictactoe-prod | prod | prod | tictactoe-prod | 3 |
+
 ## Quick Start
 
 ### Prerequisites
@@ -116,9 +162,12 @@ tictactoe-k8s/
 - ArgoCD installed
 - `kubectl` configured
 
-### Deploy with ArgoCD
+### Deploy All Environments
 
 ```bash
+CLUSTER_SERVER="https://kubernetes.default.svc"  # or your cluster ARN
+
+# Dev (tracks main branch)
 kubectl apply -f - <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -129,11 +178,55 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pnz1990/tictactoe-k8s.git
-    targetRevision: HEAD
-    path: k8s/overlays/dev  # or staging, prod
+    targetRevision: main
+    path: k8s/overlays/dev
   destination:
-    server: https://kubernetes.default.svc
+    server: ${CLUSTER_SERVER}
     namespace: tictactoe-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+EOF
+
+# Staging (tracks staging branch)
+kubectl apply -f - <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tictactoe-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pnz1990/tictactoe-k8s.git
+    targetRevision: staging
+    path: k8s/overlays/staging
+  destination:
+    server: ${CLUSTER_SERVER}
+    namespace: tictactoe-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+EOF
+
+# Prod (tracks prod branch)
+kubectl apply -f - <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tictactoe-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pnz1990/tictactoe-k8s.git
+    targetRevision: prod
+    path: k8s/overlays/prod
+  destination:
+    server: ${CLUSTER_SERVER}
+    namespace: tictactoe-prod
   syncPolicy:
     automated:
       prune: true
