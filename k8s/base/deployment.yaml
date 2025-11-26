@@ -11,6 +11,10 @@ spec:
     metadata:
       labels:
         app: tictactoe
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/path: "/metrics"
     spec:
       securityContext:
         runAsNonRoot: true
@@ -32,6 +36,7 @@ spec:
         image: ghcr.io/pnz1990/tictactoe-k8s:latest
         ports:
         - containerPort: 8080
+          name: http
         resources:
           requests:
             cpu: 10m
@@ -65,6 +70,28 @@ spec:
           mountPath: /run
         - name: lib
           mountPath: /var/lib/nginx
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      - name: metrics
+        image: nginx/nginx-prometheus-exporter:1.1
+        args:
+        - -nginx.scrape-uri=http://localhost:8080/stub_status
+        ports:
+        - containerPort: 9113
+          name: metrics
+        resources:
+          requests:
+            cpu: 5m
+            memory: 8Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
       volumes:
       - name: tmp
         emptyDir: {}
@@ -74,3 +101,6 @@ spec:
         emptyDir: {}
       - name: lib
         emptyDir: {}
+      - name: nginx-conf
+        configMap:
+          name: nginx-config

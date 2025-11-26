@@ -5,3 +5,4 @@ resources:
 - service.yaml
 - networkpolicy.yaml
 - pdb.yaml
+- nginx-config.yaml
