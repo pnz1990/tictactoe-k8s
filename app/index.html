@@ -43,11 +43,19 @@
   </style>
 </head>
 <body>
-  <h1>⚡ Tic Tac Toe v2 ⚡</h1>
+  <h1 id="title">⚡ Tic Tac Toe v2 ⚡</h1>
   <div class="status" id="status">X's turn</div>
   <div class="board" id="board"></div>
   <button onclick="reset()">New Game</button>
   <script>
+    // Detect environment from ALB hostname
+    const host = location.hostname;
+    let env = 'LOCAL';
+    if (host.includes('74ef9eee48')) env = 'DEV';
+    else if (host.includes('56b83df6f7')) env = 'STAGING';
+    else if (host.includes('07fc5efb78')) env = 'PROD';
+    document.getElementById('title').textContent = '⚡ Tic Tac Toe v2 - ' + env + ' ⚡';
+    
     const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
     let board, turn, over;
     function init() {
