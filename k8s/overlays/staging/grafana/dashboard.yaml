@@ -110,11 +110,11 @@ spec:
           "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistics": ["Average"], "dimensions": {"LoadBalancer": "app/k8s-tictacto-tictacto-56b83df6f7/e23e874f723a3fca"}, "matchExact": true}]
         },
         {
-          "id": 15, "title": "Pod CPU Usage", "type": "timeseries",
+          "id": 15, "title": "Backend CPU Usage", "type": "timeseries",
           "gridPos": {"h": 6, "w": 8, "x": 16, "y": 18},
           "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
           "targets": [
-            {"refId": "A", "expr": "rate(container_cpu_usage_seconds_total{namespace=\"tictactoe-staging\", container!=\"\"}[5m])", "legendFormat": "{{pod}} - {{container}}"}
+            {"refId": "A", "expr": "rate(process_cpu_seconds_total{namespace=\"tictactoe-staging\", app=\"tictactoe-backend\"}[5m])", "legendFormat": "backend"}
           ],
           "fieldConfig": {"defaults": {"unit": "percentunit"}}
         }
