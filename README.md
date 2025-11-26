@@ -281,12 +281,59 @@ cosign verify ghcr.io/pnz1990/tictactoe-k8s:latest \
 
 ## Monitoring & Observability
 
-### Health Endpoints
-- **Liveness**: `GET /` on port 8080 (checks if nginx is responding)
-- **Readiness**: `GET /` on port 8080 (checks if app is ready to serve)
+### Prometheus Metrics
 
-### ArgoCD Dashboard
-Monitor sync status, health, and history in the ArgoCD UI.
+The application exposes metrics via nginx-prometheus-exporter sidecar on port 9113.
+
+```bash
+# Port-forward to access metrics
+kubectl port-forward -n tictactoe-dev svc/tictactoe 9113:9113
+
+# View metrics
+curl localhost:9113/metrics
+```
+
+**Available Metrics:**
+- `nginx_connections_active` - Active client connections
+- `nginx_connections_accepted` - Total accepted connections
+- `nginx_connections_handled` - Total handled connections
+- `nginx_http_requests_total` - Total HTTP requests
+- `nginx_up` - Nginx health status
+
+**Prometheus Annotations** (auto-discovery):
+```yaml
+prometheus.io/scrape: "true"
+prometheus.io/port: "9113"
+prometheus.io/path: "/metrics"
+```
+
+### Structured Logging
+
+Logs are output in JSON format for easy parsing by log aggregators (Fluentd, Loki, CloudWatch, etc.):
+
+```json
+{
+  "time": "2025-11-26T00:30:51+00:00",
+  "remote_addr": "172.31.13.88",
+  "method": "GET",
+  "uri": "/index.html",
+  "status": 200,
+  "body_bytes_sent": 3241,
+  "request_time": 0.000,
+  "http_referer": "",
+  "http_user_agent": "Mozilla/5.0..."
+}
+```
+
+```bash
+# View logs
+kubectl logs -n tictactoe-dev deploy/tictactoe -c tictactoe
+```
+
+### Health Endpoints
+- **Liveness**: `GET /` on port 8080
+- **Readiness**: `GET /` on port 8080
+- **Health check**: `GET /healthz` on port 8080
 
 ## Development
 
@@ -327,6 +374,11 @@ kubectl kustomize k8s/overlays/prod
 - [x] Network policies
 - [x] Pod disruption budget
 - [x] Kustomize overlays (dev/staging/prod)
+
+### Observability
+- [x] Prometheus metrics endpoint (nginx-prometheus-exporter sidecar)
+- [x] Structured JSON logging
+- [x] Health endpoints (/healthz)
 
 ### GitOps
 - [x] ArgoCD auto-sync
