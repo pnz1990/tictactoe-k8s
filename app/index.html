@@ -12,13 +12,36 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      background: var(--bg-gradient);
       font-family: 'Segoe UI', sans-serif;
       color: #fff;
+      padding: 20px;
     }
-    h1 { font-size: 2.5rem; margin-bottom: 1rem; text-shadow: 0 0 20px #e94560; }
-    .status { font-size: 1.3rem; margin-bottom: 1.5rem; min-height: 2rem; color: #e94560; }
-    .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; }
+    body.dev { --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+    body.staging { --bg-gradient: linear-gradient(135deg, #2e1a1a 0%, #3e2116 50%, #60340f 100%); }
+    body.prod { --bg-gradient: linear-gradient(135deg, #1a2e1a 0%, #16213e 50%, #0f4660 100%); }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      max-width: 400px;
+      width: 100%;
+    }
+    .env-badge {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 8px 16px;
+      background: rgba(233, 69, 96, 0.8);
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    h1 { font-size: 2.5rem; margin-bottom: 1rem; text-shadow: 0 0 20px #e94560; text-align: center; }
+    .status { font-size: 1.3rem; margin-bottom: 1.5rem; min-height: 2rem; color: #e94560; text-align: center; }
+    .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 0 auto; }
     .cell {
       width: 100px; height: 100px;
       background: rgba(255,255,255,0.1);
@@ -55,6 +78,8 @@
   </style>
 </head>
 <body>
+  <div class="env-badge" id="env-badge">DEV</div>
+  <div class="container">
   <div id="setup" class="setup">
     <h1>⚡ Tic Tac Toe v3 ⚡</h1>
     <p style="margin-bottom: 20px; color: #e94560;">Enter player names to begin</p>
@@ -78,8 +103,18 @@
     <button onclick="reset()">New Game</button>
     <button onclick="changePlayers()" style="margin-left: 10px; background: #16213e;">Change Players</button>
   </div>
+  </div>
 
   <script>
+    // Detect environment from hostname
+    const hostname = window.location.hostname;
+    let env = 'dev';
+    if (hostname.includes('56b83df6f7')) env = 'staging';
+    else if (hostname.includes('07fc5efb78')) env = 'prod';
+    
+    document.body.classList.add(env);
+    document.getElementById('env-badge').textContent = env.toUpperCase();
+    
     const API_URL = window.BACKEND_URL || '';
     const patterns = {
       '0,1,2': 'row1', '3,4,5': 'row2', '6,7,8': 'row3',
