@@ -270,7 +270,7 @@ cosign verify ghcr.io/pnz1990/tictactoe-k8s:latest \
 **SBOM (Software Bill of Materials)**
 ```bash
 # View SBOM attestation
-cosign download attestation ghcr.io/pnz1990/tictactoe-k8s:latest | jq -r '.payload' | base64 -d | jq '.predicate'
+cosign download attestation ghcr.io/pnz1990/tictactoe-k8s:latest | head -1 | jq -r '.payload' | base64 -d | jq -r '.predicate' | jq
 ```
 
 ### Automated Dependency Updates (Renovate)
