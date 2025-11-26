@@ -4,6 +4,7 @@ metadata:
   name: tictactoe
   namespace: tictactoe-prod
 spec:
+  allowCrossNamespaceImport: true
   instanceSelector:
     matchLabels:
       dashboards: "amg"
