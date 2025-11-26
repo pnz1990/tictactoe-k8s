@@ -17,6 +17,16 @@ spec:
         runAsUser: 65532
         runAsGroup: 65532
         fsGroup: 65532
+      initContainers:
+      - name: init-dirs
+        image: busybox:stable
+        command: ['sh', '-c', 'mkdir -p /var/lib/nginx/tmp/client_body /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/fastcgi /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi']
+        securityContext:
+          runAsUser: 65532
+          runAsGroup: 65532
+        volumeMounts:
+        - name: lib
+          mountPath: /var/lib/nginx
       containers:
       - name: tictactoe
         image: ghcr.io/pnz1990/tictactoe-k8s:latest
