@@ -5,53 +5,57 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
+	// Business metrics
 	gamesTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "tictactoe_games_total",
-			Help: "Total number of games played",
-		},
+		prometheus.CounterOpts{Name: "tictactoe_games_total", Help: "Total games played"},
 		[]string{"result"},
 	)
 	winsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "tictactoe_wins_total",
-			Help: "Total wins by player and winning pattern",
-		},
+		prometheus.CounterOpts{Name: "tictactoe_wins_total", Help: "Wins by player and pattern"},
 		[]string{"player", "pattern"},
 	)
 	playerGamesTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "tictactoe_player_games_total",
-			Help: "Total games played per player",
-		},
+		prometheus.CounterOpts{Name: "tictactoe_player_games_total", Help: "Games per player"},
 		[]string{"player"},
 	)
 	tiesTotal = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "tictactoe_ties_total",
-			Help: "Total number of tied games",
-		},
+		prometheus.CounterOpts{Name: "tictactoe_ties_total", Help: "Total tied games"},
 	)
 	winStreakGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "tictactoe_current_win_streak",
-			Help: "Current win streak per player",
-		},
+		prometheus.GaugeOpts{Name: "tictactoe_current_win_streak", Help: "Current win streak"},
 		[]string{"player"},
+	)
+
+	// Ops metrics
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "http_requests_total", Help: "Total HTTP requests"},
+		[]string{"method", "endpoint", "status"},
+	)
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "HTTP request duration",
+			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1},
+		},
+		[]string{"method", "endpoint"},
+	)
+	httpRequestsInFlight = prometheus.NewGauge(
+		prometheus.GaugeOpts{Name: "http_requests_in_flight", Help: "Current in-flight requests"},
 	)
 )
 
 type GameResult struct {
 	Player1 string `json:"player1"`
 	Player2 string `json:"player2"`
-	Winner  string `json:"winner"` // player name or empty for tie
-	Pattern string `json:"pattern"` // row1, row2, row3, col1, col2, col3, diag1, diag2
+	Winner  string `json:"winner"`
+	Pattern string `json:"pattern"`
 	IsTie   bool   `json:"isTie"`
 }
 
@@ -59,6 +63,31 @@ var winStreaks = make(map[string]int)
 
 func init() {
 	prometheus.MustRegister(gamesTotal, winsTotal, playerGamesTotal, tiesTotal, winStreakGauge)
+	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration, httpRequestsInFlight)
+}
+
+func metricsMiddleware(endpoint string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		httpRequestsInFlight.Inc()
+		defer httpRequestsInFlight.Dec()
+
+		rw := &responseWriter{w, http.StatusOK}
+		next(rw, r)
+
+		httpRequestsTotal.WithLabelValues(r.Method, endpoint, http.StatusText(rw.status)).Inc()
+		httpRequestDuration.WithLabelValues(r.Method, endpoint).Observe(time.Since(start).Seconds())
+	}
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -86,14 +115,12 @@ func gameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Record games for both players
 	playerGamesTotal.WithLabelValues(result.Player1).Inc()
 	playerGamesTotal.WithLabelValues(result.Player2).Inc()
 
 	if result.IsTie {
 		gamesTotal.WithLabelValues("tie").Inc()
 		tiesTotal.Inc()
-		// Reset streaks on tie
 		winStreaks[result.Player1] = 0
 		winStreaks[result.Player2] = 0
 		winStreakGauge.WithLabelValues(result.Player1).Set(0)
@@ -101,8 +128,6 @@ func gameHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		gamesTotal.WithLabelValues("win").Inc()
 		winsTotal.WithLabelValues(result.Winner, result.Pattern).Inc()
-		
-		// Update win streaks
 		loser := result.Player1
 		if result.Winner == result.Player1 {
 			loser = result.Player2
@@ -129,8 +154,8 @@ func main() {
 		port = "8081"
 	}
 
-	http.HandleFunc("/api/game", corsMiddleware(gameHandler))
-	http.HandleFunc("/healthz", healthHandler)
+	http.HandleFunc("/api/game", metricsMiddleware("/api/game", corsMiddleware(gameHandler)))
+	http.HandleFunc("/healthz", metricsMiddleware("/healthz", healthHandler))
 	http.Handle("/metrics", promhttp.Handler())
 
 	log.Printf("Backend starting on :%s", port)
