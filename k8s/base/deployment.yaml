@@ -74,7 +74,7 @@ spec:
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
       - name: metrics
-        image: nginx/nginx-prometheus-exporter:1.1
+        image: nginx/nginx-prometheus-exporter:1.5
         args:
         - -nginx.scrape-uri=http://localhost:8080/stub_status
         ports:
