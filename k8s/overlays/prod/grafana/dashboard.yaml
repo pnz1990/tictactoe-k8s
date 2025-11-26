@@ -1,0 +1,63 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: tictactoe
+  namespace: tictactoe-prod
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "amg"
+  json: |
+    {
+      "title": "Tic Tac Toe - PROD",
+      "uid": "tictactoe-prod",
+      "time": {"from": "now-1h", "to": "now"},
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1, "title": "HTTP Requests/sec", "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
+          "targets": [{"refId": "A", "expr": "rate(nginx_http_requests_total{namespace=\"tictactoe-prod\"}[5m])"}]
+        },
+        {
+          "id": 2, "title": "Active Connections", "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
+          "targets": [{"refId": "A", "expr": "nginx_connections_active{namespace=\"tictactoe-prod\"}"}]
+        },
+        {
+          "id": 3, "title": "Nginx Up", "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"},
+          "targets": [{"refId": "A", "expr": "nginx_up{namespace=\"tictactoe-prod\"}"}],
+          "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"1": {"text": "UP", "color": "green"}, "0": {"text": "DOWN", "color": "red"}}}]}}
+        },
+        {
+          "id": 11, "title": "ALB Request Count", "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"},
+          "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "RequestCount", "statistics": ["Sum"], "dimensions": {"LoadBalancer": "app/k8s-tictacto-tictacto-07fc5efb78/d70d515f64d90c39"}, "matchExact": true}]
+        },
+        {
+          "id": 12, "title": "ALB Response Time (p99)", "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"},
+          "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "TargetResponseTime", "statistics": ["p99"], "dimensions": {"LoadBalancer": "app/k8s-tictacto-tictacto-07fc5efb78/d70d515f64d90c39"}, "matchExact": true}],
+          "fieldConfig": {"defaults": {"unit": "s"}}
+        },
+        {
+          "id": 13, "title": "ALB 5xx Errors", "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+          "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"},
+          "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HTTPCode_ELB_5XX_Count", "statistics": ["Sum"], "dimensions": {"LoadBalancer": "app/k8s-tictacto-tictacto-07fc5efb78/d70d515f64d90c39"}, "matchExact": true}],
+          "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}
+        },
+        {
+          "id": 14, "title": "ALB Healthy Hosts", "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+          "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"},
+          "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistics": ["Average"], "dimensions": {"LoadBalancer": "app/k8s-tictacto-tictacto-07fc5efb78/d70d515f64d90c39"}, "matchExact": true}]
+        }
+      ]
+    }

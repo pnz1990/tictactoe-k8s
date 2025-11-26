@@ -4,6 +4,7 @@ namespace: tictactoe-prod
 resources:
 - ../../base
 - namespace.yaml
+- grafana/dashboard.yaml
 patches:
 - patch: |-
     - op: replace
