@@ -1,9 +1,9 @@
 FROM golang:1.23-alpine AS builder
 WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
+COPY go.mod ./
+RUN go mod download || true
 COPY main.go .
-RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o server .
 
 FROM gcr.io/distroless/static:nonroot
 COPY --from=builder /app/server /server
