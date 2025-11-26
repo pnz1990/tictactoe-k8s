@@ -1,6 +1,17 @@
 # Tic Tac Toe - Kubernetes Reference Application
 
+[![Comprehensive Testing & Best Practices](https://github.com/pnz1990/tictactoe-k8s/actions/workflows/comprehensive-tests.yaml/badge.svg)](https://github.com/pnz1990/tictactoe-k8s/actions/workflows/comprehensive-tests.yaml)
+[![Build and Push](https://github.com/pnz1990/tictactoe-k8s/actions/workflows/build.yaml/badge.svg)](https://github.com/pnz1990/tictactoe-k8s/actions/workflows/build.yaml)
+
 A production-ready reference application demonstrating modern DevOps and Kubernetes best practices. This Tic Tac Toe game serves as a template for building secure, scalable, and maintainable containerized applications with business metrics.
+
+## Environment URLs
+
+| Environment | URL |
+|-------------|-----|
+| **Dev** | http://k8s-tictacto-tictacto-74ef9eee48-849005702.ap-northeast-2.elb.amazonaws.com |
+| **Staging** | http://k8s-tictacto-tictacto-56b83df6f7-1560952635.ap-northeast-2.elb.amazonaws.com |
+| **Production** | http://k8s-tictacto-tictacto-07fc5efb78-1194656974.ap-northeast-2.elb.amazonaws.com |
 
 ## Architecture Overview
 
@@ -402,6 +413,65 @@ kubectl kustomize k8s/overlays/dev
 kubectl kustomize k8s/overlays/prod
 ```
 
+## Testing
+
+The project includes a comprehensive test suite that runs automatically on every push via GitHub Actions.
+
+### Test Suite Overview
+
+| Test | Description | Location |
+|------|-------------|----------|
+| Unit Tests | Go backend business logic, metrics, CORS, health endpoints | `backend/main_test.go` |
+| Integration Tests | Concurrent requests, API response time, load handling | `tests/integration/` |
+| Dockerfile Tests | Multi-stage builds, non-root user, minimal base images | `tests/policies/test-dockerfiles.sh` |
+| K8s Manifest Validation | Security contexts, resource limits, probes, NetworkPolicy | `tests/policies/test-policies.sh` |
+| Security Tests | Pod security standards, secrets, network policies, Trivy scans | `tests/security/security_test.sh` |
+| Reliability Tests | PDB, replicas, health probes, rolling updates | `tests/reliability/reliability_test.sh` |
+| Observability Tests | Prometheus annotations, metrics endpoints | `tests/observability/observability_test.sh` |
+| Performance Tests | K6 load testing with thresholds | `tests/performance/load_test.js` |
+| E2E Tests | Full deployment flow, connectivity, resilience | `tests/e2e/e2e_test.sh` |
+
+### Running Tests Locally
+
+```bash
+# Unit tests
+cd backend && go test -v ./...
+
+# Integration tests
+cd tests/integration && go test -v ./...
+
+# Policy tests
+./tests/policies/test-dockerfiles.sh
+./tests/policies/test-policies.sh
+
+# Security tests
+./tests/security/security_test.sh
+
+# Reliability tests
+./tests/reliability/reliability_test.sh
+```
+
+### CI/CD Test Pipeline
+
+The GitHub Actions workflow runs on every push to main/staging/prod branches:
+
+```
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   Unit Tests    │  │Integration Tests│  │ Dockerfile Tests│
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ Security Tests  │  │Reliability Tests│  │  Code Quality   │
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              ▼
+                    ┌─────────────────┐
+                    │  Test Summary   │
+                    └─────────────────┘
+```
+
 ## Best Practices Checklist
 
 ### CI/CD & Image
@@ -411,6 +481,16 @@ kubectl kustomize k8s/overlays/prod
 - [x] Image signing (Cosign keyless via GitHub OIDC)
 - [x] SBOM generation (attached to image)
 - [x] Build caching
+
+### Testing
+- [x] Unit tests with coverage reporting
+- [x] Integration tests (concurrency, response time)
+- [x] Dockerfile policy validation
+- [x] Kubernetes manifest validation
+- [x] Security policy tests
+- [x] Reliability tests (PDB, probes, resources)
+- [x] Performance tests (K6 load testing)
+- [x] Automated CI/CD test pipeline
 
 ### Kubernetes Manifests
 - [x] Resource limits/requests

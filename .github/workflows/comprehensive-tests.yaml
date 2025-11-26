@@ -1,0 +1,143 @@
+name: Comprehensive Testing & Best Practices
+
+on:
+  push:
+    branches: [main, staging, prod]
+  pull_request:
+    branches: [main, staging, prod]
+
+env:
+  GO_VERSION: '1.24'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run Unit Tests
+        working-directory: backend
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run Integration Tests
+        working-directory: tests/integration
+        run: go test -v -timeout 5m ./...
+
+  dockerfile-tests:
+    name: Dockerfile Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Dockerfile Tests
+        run: |
+          chmod +x tests/policies/test-dockerfiles.sh
+          ./tests/policies/test-dockerfiles.sh
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: backend/Dockerfile
+          failure-threshold: error
+
+  manifest-validation:
+    name: K8s Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-kubectl@v4
+      - name: Validate Manifests
+        run: |
+          for env in dev staging prod; do
+            echo "Validating $env overlay..."
+            kubectl kustomize k8s/overlays/$env > /dev/null
+            echo "✅ $env manifests valid"
+          done
+      - name: Run Policy Tests
+        run: |
+          chmod +x tests/policies/test-policies.sh
+          ./tests/policies/test-policies.sh || true
+
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build Images
+        run: |
+          docker build -t tictactoe-frontend:test app/
+          docker build -t tictactoe-backend:test backend/
+      - name: Trivy Scan - Frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tictactoe-frontend:test
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL'
+      - name: Trivy Scan - Backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: tictactoe-backend:test
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL'
+      - name: Run Security Tests
+        run: |
+          chmod +x tests/security/security_test.sh
+          ./tests/security/security_test.sh
+
+  reliability-tests:
+    name: Reliability Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-kubectl@v4
+      - name: Run Reliability Tests
+        run: |
+          chmod +x tests/reliability/reliability_test.sh
+          ./tests/reliability/reliability_test.sh
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Go Vet
+        working-directory: backend
+        run: go vet ./...
+      - name: Go Fmt Check
+        working-directory: backend
+        run: test -z "$(gofmt -l .)"
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, dockerfile-tests, manifest-validation, security-tests, reliability-tests, code-quality]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dockerfile Tests | ${{ needs.dockerfile-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Manifest Validation | ${{ needs.manifest-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Tests | ${{ needs.security-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Reliability Tests | ${{ needs.reliability-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY

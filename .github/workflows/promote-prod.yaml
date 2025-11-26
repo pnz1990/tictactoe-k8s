@@ -1,0 +1,24 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      
+      - name: Create promotion PR
+        run: |
+          gh pr create \
+            --base prod \
+            --head staging \
+            --title "Promote staging to production" \
+            --body "Automated promotion of staging branch to production environment" \
+            --label "promotion" \
+            || echo "PR already exists or no changes to promote"
+        env:
+          GH_TOKEN: ${{ github.token }}
