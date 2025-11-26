@@ -14,8 +14,8 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Run Unit Tests
@@ -28,8 +28,8 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Run Integration Tests
@@ -40,7 +40,7 @@ jobs:
     name: Dockerfile Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run Dockerfile Tests
         run: |
           chmod +x tests/policies/test-dockerfiles.sh
@@ -55,7 +55,7 @@ jobs:
     name: K8s Manifest Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: azure/setup-kubectl@v4
       - name: Validate Manifests
         run: |
@@ -73,7 +73,7 @@ jobs:
     name: Security Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build Images
         run: |
           docker build -t tictactoe-frontend:test app/
@@ -101,7 +101,7 @@ jobs:
     name: Reliability Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: azure/setup-kubectl@v4
       - name: Run Reliability Tests
         run: |
@@ -113,8 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true  # Don't fail the workflow on performance test failures
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Start Backend
@@ -137,8 +137,8 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Go Vet
