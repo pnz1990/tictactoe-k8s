@@ -22,7 +22,7 @@ spec:
         runAsGroup: 65532
       containers:
       - name: backend
-        image: ghcr.io/pnz1990/tictactoe-backend:latest
+        image: ghcr.io/pnz1990/tictactoe-k8s-backend:latest
         ports:
         - containerPort: 8081
           name: http
