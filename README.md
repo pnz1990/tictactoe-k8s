@@ -79,6 +79,7 @@ A production-ready reference application demonstrating modern DevOps and Kuberne
 | **Security Context** | Non-root, read-only filesystem, dropped capabilities, seccomp |
 | **Network Policy** | Ingress on 8080/9113, egress to DNS only |
 | **Pod Disruption Budget** | Ensures availability during cluster maintenance |
+| **ALB Ingress** | EKS Auto Mode Application Load Balancer per environment |
 | **Kustomize Overlays** | Environment-specific configs (dev/staging/prod) |
 
 ## Directory Structure
@@ -235,9 +236,16 @@ EOF
 
 ### Access the Application
 
+Each environment has its own ALB ingress (EKS Auto Mode):
+
+```bash
+# Get ALB URLs
+kubectl get ingress -A -o custom-columns='ENV:.metadata.namespace,URL:.status.loadBalancer.ingress[0].hostname'
+```
+
+Or use port-forward:
 ```bash
 kubectl port-forward -n tictactoe-dev svc/tictactoe 8080:80
-# Open http://localhost:8080
 ```
 
 ## CI/CD Workflow
