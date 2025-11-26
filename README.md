@@ -332,6 +332,7 @@ kubectl kustomize k8s/overlays/prod
 - [x] ArgoCD auto-sync
 - [x] Self-healing enabled
 - [x] Pruning enabled
+- [x] Branch-based promotion (main → staging → prod)
 
 ## License
 
