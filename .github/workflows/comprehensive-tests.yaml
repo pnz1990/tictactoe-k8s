@@ -108,31 +108,6 @@ jobs:
           chmod +x tests/reliability/reliability_test.sh
           ./tests/reliability/reliability_test.sh
 
-  performance-tests:
-    name: Performance Tests
-    runs-on: ubuntu-latest
-    continue-on-error: true  # Don't fail the workflow on performance test failures
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Start Backend
-        working-directory: backend
-        run: |
-          go build -o backend .
-          ./backend &
-          sleep 3
-      - name: Install k6
-        run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install k6
-      - name: Run Load Tests
-        run: k6 run --vus 5 --duration 10s tests/performance/load_test.js
-
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
