@@ -1,4 +1,3 @@
-FROM nginxinc/nginx-unprivileged:stable-bookworm
-COPY --chown=nginx:nginx index.html /usr/share/nginx/html/
-COPY --chown=nginx:nginx nginx.conf /etc/nginx/nginx.conf
+FROM cgr.dev/chainguard/nginx:latest
+COPY index.html /usr/share/nginx/html/
 EXPOSE 8080
