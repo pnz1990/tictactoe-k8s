@@ -437,3 +437,16 @@ kubectl kustomize k8s/overlays/prod
 ## License
 
 MIT
+
+### ALB Metrics (CloudWatch)
+
+ALB metrics are automatically collected by AWS and available in Grafana dashboards:
+
+| Metric | Description |
+|--------|-------------|
+| RequestCount | Total requests through ALB |
+| TargetResponseTime | Backend response latency (p99) |
+| HTTPCode_ELB_5XX_Count | ALB 5xx errors |
+| HealthyHostCount | Number of healthy targets |
+
+These metrics are queried directly from CloudWatch in the Grafana dashboards.
