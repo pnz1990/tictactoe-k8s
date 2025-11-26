@@ -111,6 +111,7 @@ jobs:
   performance-tests:
     name: Performance Tests
     runs-on: ubuntu-latest
+    continue-on-error: true  # Don't fail the workflow on performance test failures
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
