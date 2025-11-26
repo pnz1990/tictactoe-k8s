@@ -5,6 +5,14 @@
 
 A production-ready reference application demonstrating modern DevOps and Kubernetes best practices. This Tic Tac Toe game serves as a template for building secure, scalable, and maintainable containerized applications with business metrics.
 
+## Environment URLs
+
+| Environment | URL |
+|-------------|-----|
+| **Dev** | http://k8s-tictacto-tictacto-74ef9eee48-849005702.ap-northeast-2.elb.amazonaws.com |
+| **Staging** | http://k8s-tictacto-tictacto-56b83df6f7-1560952635.ap-northeast-2.elb.amazonaws.com |
+| **Production** | http://k8s-tictacto-tictacto-07fc5efb78-1194656974.ap-northeast-2.elb.amazonaws.com |
+
 ## Architecture Overview
 
 ```
