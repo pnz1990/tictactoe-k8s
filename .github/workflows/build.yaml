@@ -59,8 +59,12 @@ jobs:
           category: frontend
 
       - uses: sigstore/cosign-installer@v3
-      - name: Sign frontend
-        run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.build.outputs.digest }}
+      - uses: anchore/sbom-action/download-syft@v0
+      - name: Sign and attach SBOM
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.build.outputs.digest }}
+          syft ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.build.outputs.digest }} -o spdx-json > sbom.json
+          cosign attest --yes --predicate sbom.json --type spdx ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.build.outputs.digest }}
 
   backend:
     runs-on: ubuntu-latest
@@ -109,5 +113,9 @@ jobs:
           category: backend
 
       - uses: sigstore/cosign-installer@v3
-      - name: Sign backend
-        run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}
+      - uses: anchore/sbom-action/download-syft@v0
+      - name: Sign and attach SBOM
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}
+          syft ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }} -o spdx-json > sbom.json
+          cosign attest --yes --predicate sbom.json --type spdx ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}
