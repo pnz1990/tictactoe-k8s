@@ -9,10 +9,10 @@ resources:
 images:
 - name: ghcr.io/pnz1990/tictactoe-k8s
   newName: ghcr.io/pnz1990/tictactoe-k8s
-  newTag: 0336a89f61bde22983f202ec3a89f5d6e7ea6031
+  newTag: 83304e6f509de93ba251db87306751b692a60e87
 - name: ghcr.io/pnz1990/tictactoe-k8s-backend
   newName: ghcr.io/pnz1990/tictactoe-k8s-backend
-  newTag: 0336a89f61bde22983f202ec3a89f5d6e7ea6031
+  newTag: 83304e6f509de93ba251db87306751b692a60e87
 patches:
 - patch: |-
     - op: replace
