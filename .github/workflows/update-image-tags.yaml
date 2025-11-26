@@ -23,8 +23,8 @@ jobs:
           COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
           SHORT_SHA="${COMMIT_SHA:0:7}"
           
-          # Update dev overlay
-          sed -i "s|newTag:.*|newTag: $SHORT_SHA|g" k8s/overlays/dev/kustomization.yaml
+          # Update dev overlay with quoted SHA
+          sed -i "s|newTag:.*|newTag: \"$SHORT_SHA\"|g" k8s/overlays/dev/kustomization.yaml
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
