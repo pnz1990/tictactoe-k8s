@@ -3,6 +3,10 @@ name: Promote to Production
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   promote:
     runs-on: ubuntu-latest
