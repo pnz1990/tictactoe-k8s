@@ -5,6 +5,24 @@
 
 A production-ready reference application demonstrating modern DevOps and Kubernetes best practices. This Tic Tac Toe game serves as a template for building secure, scalable, and maintainable containerized applications with business metrics.
 
+## Managed AWS Services
+
+This project uses the following AWS managed services:
+
+| Service | ID/Endpoint | Purpose |
+|---------|-------------|---------|
+| **Amazon Managed Grafana (AMG)** | `g-8f648e108c` | Dashboard visualization |
+| **Amazon Managed Prometheus (AMP)** | `ws-62f6ab4b-6a1c-4971-806e-dee13a1e1e95` | Metrics storage |
+| **Amazon EKS** | `unique-lofi-goose` | Kubernetes cluster |
+| **AWS-managed ArgoCD** | Managed service | GitOps continuous deployment |
+
+**Note:** ArgoCD, Grafana, and Prometheus are AWS-managed services. You cannot access their logs, configurations, or internal resources directly. All management is done through:
+- ArgoCD: Application CRs in the cluster
+- Grafana: Web UI at https://g-8f648e108c.grafana-workspace.ap-northeast-2.amazonaws.com
+- Prometheus: Queried through Grafana datasources
+
+**ArgoCD Auto-Sync:** Changes are automatically picked up within ~3 minutes (default polling interval). No manual sync required.
+
 ## Environment URLs
 
 | Environment | URL |
