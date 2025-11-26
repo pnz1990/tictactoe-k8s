@@ -53,10 +53,14 @@ spec:
           mountPath: /var/cache/nginx
         - name: run
           mountPath: /var/run
+        - name: lib
+          mountPath: /var/lib/nginx
       volumes:
       - name: tmp
         emptyDir: {}
       - name: cache
         emptyDir: {}
       - name: run
+        emptyDir: {}
+      - name: lib
         emptyDir: {}
