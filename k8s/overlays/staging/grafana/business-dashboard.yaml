@@ -11,7 +11,7 @@ spec:
   json: |
     {
       "title": "Tic Tac Toe Business Metrics - STAGING",
-      "uid": "tictactoe-business-dev",
+      "uid": "tictactoe-business-staging",
       "time": {"from": "now-24h", "to": "now"},
       "refresh": "30s",
       "panels": [
