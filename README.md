@@ -1,6 +1,6 @@
 # Tic Tac Toe - Kubernetes Reference Application
 
-A production-ready reference application demonstrating modern DevOps and Kubernetes best practices. This simple Tic Tac Toe game serves as a template for building secure, scalable, and maintainable containerized applications.
+A production-ready reference application demonstrating modern DevOps and Kubernetes best practices. This Tic Tac Toe game serves as a template for building secure, scalable, and maintainable containerized applications with business metrics.
 
 ## Architecture Overview
 
@@ -8,46 +8,55 @@ A production-ready reference application demonstrating modern DevOps and Kuberne
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              GitHub Repository                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  app/                          │  k8s/                                      │
-│  ├── index.html (game)         │  ├── base/ (shared manifests)             │
-│  └── Dockerfile                │  └── overlays/                            │
-│                                │      ├── dev/                              │
-│                                │      ├── staging/                          │
-│                                │      └── prod/                             │
+│  app/                    │  backend/              │  k8s/                   │
+│  ├── index.html          │  ├── main.go           │  ├── base/              │
+│  └── Dockerfile          │  ├── go.mod            │  │   ├── frontend/      │
+│                          │  └── Dockerfile        │  │   └── backend/       │
+│                          │                        │  └── overlays/          │
+│                          │                        │      ├── dev/           │
+│                          │                        │      ├── staging/       │
+│                          │                        │      └── prod/          │
 └─────────────────────────────────────────────────────────────────────────────┘
                 │                                    │
                 ▼                                    ▼
 ┌───────────────────────────┐         ┌───────────────────────────────────────┐
 │   GitHub Actions CI/CD    │         │            ArgoCD (GitOps)            │
 │  ┌─────────────────────┐  │         │  ┌─────────────────────────────────┐  │
-│  │ Build & Push Image  │  │         │  │ Watches k8s/ for changes        │  │
-│  │ Trivy Scan          │  │         │  │ Auto-syncs to Kubernetes        │  │
-│  │ Cosign Sign         │  │         │  │ Self-healing enabled            │  │
-│  │ SBOM Generation     │  │         │  └─────────────────────────────────┘  │
+│  │ Build Frontend      │  │         │  │ Watches k8s/ for changes        │  │
+│  │ Build Backend       │  │         │  │ Auto-syncs to Kubernetes        │  │
+│  │ Trivy Scan          │  │         │  │ Self-healing enabled            │  │
+│  │ Cosign Sign         │  │         │  └─────────────────────────────────┘  │
 │  └─────────────────────┘  │         └───────────────────────────────────────┘
 └───────────────────────────┘                          │
-                │                                      ▼
-                ▼                         ┌───────────────────────────────────┐
-┌───────────────────────────┐             │        Kubernetes Cluster         │
-│  GitHub Container Registry │             │  ┌─────────────────────────────┐  │
-│  (ghcr.io)                │             │  │ tictactoe-dev (1 replica)   │  │
-│  ┌─────────────────────┐  │             │  │ tictactoe-staging (2)       │  │
-│  │ Signed Images       │  │────────────▶│  │ tictactoe-prod (3)          │  │
-│  │ SBOM Attached       │  │             │  └─────────────────────────────┘  │
-│  │ Vulnerability Scanned│  │             │                │                  │
-│  └─────────────────────┘  │             │                ▼                  │
-└───────────────────────────┘             │  ┌─────────────────────────────┐  │
-                                          │  │ Grafana Alloy → AMP         │  │
-                                          │  │ Fluent Bit → CloudWatch     │  │
-                                          │  └─────────────────────────────┘  │
-                                          └───────────────────────────────────┘
+                                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Kubernetes Cluster                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │                              ALB Ingress                                ││
+│  │                    /api/* → Backend    /* → Frontend                    ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+│           │                                              │                   │
+│           ▼                                              ▼                   │
+│  ┌─────────────────────┐                    ┌─────────────────────┐         │
+│  │   Backend (Go)      │                    │   Frontend (nginx)  │         │
+│  │   Port 8081         │◄───── API ─────────│   Port 8080         │         │
+│  │   /metrics          │                    │                     │         │
+│  └─────────────────────┘                    └─────────────────────┘         │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │  Grafana Alloy → Amazon Managed Prometheus (AMP)                        ││
+│  │  Grafana Operator → Amazon Managed Grafana (AMG)                        ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Features
 
 ### Application
 - **Tic Tac Toe Game**: Browser-based two-player game with neon cyberpunk styling
-- **Static Site**: Pure HTML/CSS/JavaScript, no backend required
+- **Player Names**: Enter player names before starting the game
+- **Game Recording**: All game results sent to backend API
 - **Lightweight**: ~3KB total size
 
 ### CI/CD Pipeline (GitHub Actions)
@@ -419,16 +428,33 @@ kubectl kustomize k8s/overlays/prod
 
 ### Observability
 - [x] Prometheus metrics (nginx-prometheus-exporter sidecar)
+- [x] Business metrics (Go backend with Prometheus client)
 - [x] Metrics collection (Grafana Alloy → AMP)
 - [x] Log collection (Fluent Bit → CloudWatch)
-- [x] Grafana dashboards (per environment + logs)
+- [x] Infrastructure dashboards (per environment)
+- [x] Business dashboards (leaderboard, patterns, streaks)
+- [x] Grafana dashboards as code (GrafanaDashboard CRDs)
 - [x] Structured JSON logging
 - [x] Health endpoints
+
+### Business Metrics
+The backend exposes the following Prometheus metrics:
+
+| Metric | Labels | Description |
+|--------|--------|-------------|
+| `tictactoe_games_total` | result | Total games (win/tie) |
+| `tictactoe_wins_total` | player, pattern | Wins by player and pattern |
+| `tictactoe_player_games_total` | player | Games per player |
+| `tictactoe_ties_total` | - | Total tied games |
+| `tictactoe_current_win_streak` | player | Current win streak |
+
+**Winning Patterns**: row1, row2, row3, col1, col2, col3, diag1, diag2
 
 ### GitOps
 - [x] ArgoCD auto-sync with self-healing
 - [x] Pruning enabled
 - [x] Branch-based promotion (main → staging → prod)
+- [x] Grafana Operator managing AMG dashboards
 
 ## Related Repositories
 
