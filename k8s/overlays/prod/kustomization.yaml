@@ -6,6 +6,11 @@ resources:
 - namespace.yaml
 - grafana/dashboard.yaml
 - grafana/business-dashboard.yaml
+images:
+- name: ghcr.io/pnz1990/tictactoe-k8s
+  newTag: prod
+- name: ghcr.io/pnz1990/tictactoe-k8s-backend
+  newTag: prod
 patches:
 - patch: |-
     - op: replace
