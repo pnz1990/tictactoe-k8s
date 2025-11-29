@@ -11,3 +11,4 @@ spec:
   cpuLimit: "100m"
   memoryRequest: "16Mi"
   memoryLimit: "64Mi"
+  albId: "app/k8s-tictacto-tictacto-74ef9eee48/2e6939d43dbb0711"
