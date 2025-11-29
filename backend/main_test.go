@@ -18,6 +18,7 @@ func resetMetrics() {
 	playerGamesTotal.Reset()
 	tiesTotal = prometheus.NewCounter(prometheus.CounterOpts{Name: "tictactoe_ties_total", Help: "Total tied games"})
 	winStreakGauge.Reset()
+	dynamoDBOps.Reset()
 	httpRequestsTotal.Reset()
 	httpRequestDuration.Reset()
 	winStreaks = make(map[string]int)
