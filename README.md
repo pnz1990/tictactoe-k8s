@@ -551,6 +551,7 @@ The backend exposes the following Prometheus metrics:
 | `tictactoe_player_games_total` | player | Games per player |
 | `tictactoe_ties_total` | - | Total tied games |
 | `tictactoe_current_win_streak` | player | Current win streak |
+| `tictactoe_dynamodb_operations_total` | operation, status | DynamoDB operations (PutItem success/error) |
 
 **Winning Patterns**: row1, row2, row3, col1, col2, col3, diag1, diag2
 
