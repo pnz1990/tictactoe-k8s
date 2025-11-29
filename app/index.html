@@ -94,7 +94,7 @@
   <div class="env-badge" id="env-badge">DEV</div>
   <div class="container">
   <div id="setup" class="setup">
-    <h1>⚡ Tic Tac Toe v1.1 ⚡</h1>
+    <h1>⚡ Tic Tac Toe v2.0 ⚡</h1>
     <p style="margin-bottom: 20px; color: #e94560;">Enter player names to begin</p>
     <div>
       <input type="text" id="p1name" placeholder="Player 1 (X)" maxlength="15">
@@ -106,7 +106,7 @@
   </div>
 
   <div id="game" class="hidden">
-    <h1 id="title">⚡ Tic Tac Toe v1.1 ⚡</h1>
+    <h1 id="title">⚡ Tic Tac Toe v2.0 ⚡</h1>
     <div class="players">
       <span class="x-player">X: <span id="p1display"></span></span>
       <span class="o-player">O: <span id="p2display"></span></span>
@@ -139,7 +139,7 @@
       player2 = document.getElementById('p2name').value.trim() || 'Player 2';
       document.getElementById('p1display').textContent = player1;
       document.getElementById('p2display').textContent = player2;
-      document.getElementById('title').textContent = '⚡ Tic Tac Toe v1.1 ⚡';
+      document.getElementById('title').textContent = '⚡ Tic Tac Toe v2.0 ⚡';
       document.getElementById('setup').classList.add('hidden');
       document.getElementById('game').classList.remove('hidden');
       init();

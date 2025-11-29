@@ -29,6 +29,115 @@ spec:
         metadata:
           name: tictactoe-${schema.spec.environment}
 
+    # DynamoDB Table for game persistence
+    - id: dynamoTable
+      template:
+        apiVersion: dynamodb.services.k8s.aws/v1alpha1
+        kind: Table
+        metadata:
+          name: tictactoe-games
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          tableName: tictactoe-games-${schema.spec.environment}
+          attributeDefinitions:
+            - attributeName: gameId
+              attributeType: S
+            - attributeName: timestamp
+              attributeType: S
+          keySchema:
+            - attributeName: gameId
+              keyType: HASH
+            - attributeName: timestamp
+              keyType: RANGE
+          billingMode: PAY_PER_REQUEST
+          tags:
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: Application
+              value: tictactoe
+
+    # IAM Policy for DynamoDB access
+    - id: dynamoPolicy
+      template:
+        apiVersion: iam.services.k8s.aws/v1alpha1
+        kind: Policy
+        metadata:
+          name: tictactoe-dynamodb-policy
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          name: tictactoe-dynamodb-${schema.spec.environment}
+          policyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:PutItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan"
+                  ],
+                  "Resource": "arn:aws:dynamodb:ap-northeast-2:*:table/tictactoe-games-${schema.spec.environment}"
+                }
+              ]
+            }
+          tags:
+            - key: Environment
+              value: ${schema.spec.environment}
+
+    # IAM Role for backend pods
+    - id: backendRole
+      template:
+        apiVersion: iam.services.k8s.aws/v1alpha1
+        kind: Role
+        metadata:
+          name: tictactoe-backend-role
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          name: tictactoe-backend-${schema.spec.environment}
+          assumeRolePolicyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "pods.eks.amazonaws.com"
+                  },
+                  "Action": ["sts:AssumeRole", "sts:TagSession"]
+                }
+              ]
+            }
+          policies:
+            - ${dynamoPolicy.status.ackResourceMetadata.arn}
+          tags:
+            - key: Environment
+              value: ${schema.spec.environment}
+
+    # Service Account for backend
+    - id: backendServiceAccount
+      template:
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+
+    # Pod Identity Association
+    - id: podIdentity
+      template:
+        apiVersion: eks.services.k8s.aws/v1alpha1
+        kind: PodIdentityAssociation
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          clusterName: unique-lofi-goose
+          namespace: ${appNamespace.metadata.name}
+          serviceAccount: tictactoe-backend
+          roleARN: ${backendRole.status.ackResourceMetadata.arn}
+
     # Nginx ConfigMap
     - id: nginxConfig
       template:
@@ -223,6 +332,7 @@ spec:
                 prometheus.io/port: "8081"
                 prometheus.io/path: "/metrics"
             spec:
+              serviceAccountName: tictactoe-backend
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 65532
@@ -236,6 +346,11 @@ spec:
                 ports:
                 - containerPort: 8081
                   name: http
+                env:
+                - name: DYNAMODB_TABLE
+                  value: tictactoe-games-${schema.spec.environment}
+                - name: AWS_REGION
+                  value: ap-northeast-2
                 resources:
                   requests:
                     cpu: 10m
@@ -371,7 +486,9 @@ spec:
                 {"id": 12, "title": "ALB - Request Count", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "RequestCount", "statistics": ["Sum"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}]},
                 {"id": 13, "title": "ALB - Response Time (p99)", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 8, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "TargetResponseTime", "statistics": ["p99"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}], "fieldConfig": {"defaults": {"unit": "s"}}},
                 {"id": 14, "title": "ALB - 5xx Errors", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 16, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HTTPCode_ELB_5XX_Count", "statistics": ["Sum"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}], "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}},
-                {"id": 15, "title": "ALB - Healthy Hosts", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 20, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistics": ["Average"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}]}
+                {"id": 15, "title": "ALB - Healthy Hosts", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 20, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistics": ["Average"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}]},
+                {"id": 16, "title": "DynamoDB - Operations/sec", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (operation, status)", "legendFormat": "{{operation}} - {{status}}"}]},
+                {"id": 17, "title": "DynamoDB - Success Rate", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 8, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\", status=\"success\"}[5m])) / sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(100)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}}}}
               ]
             }
 
