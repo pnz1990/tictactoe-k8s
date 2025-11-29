@@ -8,3 +8,4 @@ resources:
 - nginx-config.yaml
 - ingress.yaml
 - backend/
+# Webhook verified
