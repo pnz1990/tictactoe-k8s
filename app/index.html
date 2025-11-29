@@ -122,7 +122,8 @@
     // Detect environment from hostname
     const hostname = window.location.hostname;
     let env = 'dev';
-    if (hostname.includes('56b83df6f7')) env = 'staging';
+    if (hostname.includes('74ef9eee48')) env = 'dev';
+    else if (hostname.includes('56b83df6f7')) env = 'staging';
     else if (hostname.includes('07fc5efb78')) env = 'prod';
     
     document.body.classList.add(env);
@@ -136,13 +137,6 @@
     };
     const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
     let board, turn, over, player1, player2;
-
-    // Detect environment from ALB hostname
-    const host = location.hostname;
-    let env = 'LOCAL';
-    if (host.includes('74ef9eee48')) env = 'DEV';
-    else if (host.includes('56b83df6f7')) env = 'STAGING';
-    else if (host.includes('07fc5efb78')) env = 'PROD';
 
     function startGame() {
       player1 = document.getElementById('p1name').value.trim() || 'Player 1';
