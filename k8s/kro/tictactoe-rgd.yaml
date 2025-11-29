@@ -29,6 +29,115 @@ spec:
         metadata:
           name: tictactoe-${schema.spec.environment}
 
+    # DynamoDB Table for game persistence
+    - id: dynamoTable
+      template:
+        apiVersion: dynamodb.services.k8s.aws/v1alpha1
+        kind: Table
+        metadata:
+          name: tictactoe-games
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          tableName: tictactoe-games-${schema.spec.environment}
+          attributeDefinitions:
+            - attributeName: gameId
+              attributeType: S
+            - attributeName: timestamp
+              attributeType: S
+          keySchema:
+            - attributeName: gameId
+              keyType: HASH
+            - attributeName: timestamp
+              keyType: RANGE
+          billingMode: PAY_PER_REQUEST
+          tags:
+            - key: Environment
+              value: ${schema.spec.environment}
+            - key: Application
+              value: tictactoe
+
+    # IAM Policy for DynamoDB access
+    - id: dynamoPolicy
+      template:
+        apiVersion: iam.services.k8s.aws/v1alpha1
+        kind: Policy
+        metadata:
+          name: tictactoe-dynamodb-policy
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          name: tictactoe-dynamodb-${schema.spec.environment}
+          policyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:PutItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan"
+                  ],
+                  "Resource": "arn:aws:dynamodb:ap-northeast-2:*:table/tictactoe-games-${schema.spec.environment}"
+                }
+              ]
+            }
+          tags:
+            - key: Environment
+              value: ${schema.spec.environment}
+
+    # IAM Role for backend pods
+    - id: backendRole
+      template:
+        apiVersion: iam.services.k8s.aws/v1alpha1
+        kind: Role
+        metadata:
+          name: tictactoe-backend-role
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          name: tictactoe-backend-${schema.spec.environment}
+          assumeRolePolicyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "pods.eks.amazonaws.com"
+                  },
+                  "Action": ["sts:AssumeRole", "sts:TagSession"]
+                }
+              ]
+            }
+          policies:
+            - ${dynamoPolicy.status.ackResourceMetadata.arn}
+          tags:
+            - key: Environment
+              value: ${schema.spec.environment}
+
+    # Service Account for backend
+    - id: backendServiceAccount
+      template:
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+
+    # Pod Identity Association
+    - id: podIdentity
+      template:
+        apiVersion: eks.services.k8s.aws/v1alpha1
+        kind: PodIdentityAssociation
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          clusterName: unique-lofi-goose
+          namespace: ${appNamespace.metadata.name}
+          serviceAccount: tictactoe-backend
+          roleARN: ${backendRole.status.ackResourceMetadata.arn}
+
     # Nginx ConfigMap
     - id: nginxConfig
       template:
@@ -223,6 +332,7 @@ spec:
                 prometheus.io/port: "8081"
                 prometheus.io/path: "/metrics"
             spec:
+              serviceAccountName: tictactoe-backend
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 65532
@@ -236,6 +346,11 @@ spec:
                 ports:
                 - containerPort: 8081
                   name: http
+                env:
+                - name: DYNAMODB_TABLE
+                  value: tictactoe-games-${schema.spec.environment}
+                - name: AWS_REGION
+                  value: ap-northeast-2
                 resources:
                   requests:
                     cpu: 10m

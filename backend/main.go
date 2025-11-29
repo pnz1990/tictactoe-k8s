@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -31,6 +37,10 @@ var (
 	winStreakGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tictactoe_current_win_streak", Help: "Current win streak"},
 		[]string{"player"},
+	)
+	dynamoDBOps = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "tictactoe_dynamodb_operations_total", Help: "DynamoDB operations"},
+		[]string{"operation", "status"},
 	)
 
 	// Ops metrics
@@ -59,11 +69,67 @@ type GameResult struct {
 	IsTie   bool   `json:"isTie"`
 }
 
-var winStreaks = make(map[string]int)
+var (
+	winStreaks   = make(map[string]int)
+	dynamoClient *dynamodb.Client
+	tableName    string
+)
 
 func init() {
-	prometheus.MustRegister(gamesTotal, winsTotal, playerGamesTotal, tiesTotal, winStreakGauge)
+	prometheus.MustRegister(gamesTotal, winsTotal, playerGamesTotal, tiesTotal, winStreakGauge, dynamoDBOps)
 	prometheus.MustRegister(httpRequestsTotal, httpRequestDuration, httpRequestsInFlight)
+}
+
+func initDynamoDB() {
+	tableName = os.Getenv("DYNAMODB_TABLE")
+	if tableName == "" {
+		log.Println("DYNAMODB_TABLE not set, game persistence disabled")
+		return
+	}
+
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Printf("Failed to load AWS config: %v", err)
+		return
+	}
+
+	dynamoClient = dynamodb.NewFromConfig(cfg)
+	log.Printf("DynamoDB client initialized for table: %s", tableName)
+}
+
+func saveGameToDynamoDB(result GameResult) {
+	if dynamoClient == nil {
+		return
+	}
+
+	gameId := uuid.New().String()
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	item := map[string]types.AttributeValue{
+		"gameId":    &types.AttributeValueMemberS{Value: gameId},
+		"timestamp": &types.AttributeValueMemberS{Value: timestamp},
+		"player1":   &types.AttributeValueMemberS{Value: result.Player1},
+		"player2":   &types.AttributeValueMemberS{Value: result.Player2},
+		"isTie":     &types.AttributeValueMemberBOOL{Value: result.IsTie},
+	}
+
+	if !result.IsTie {
+		item["winner"] = &types.AttributeValueMemberS{Value: result.Winner}
+		item["pattern"] = &types.AttributeValueMemberS{Value: result.Pattern}
+	}
+
+	_, err := dynamoClient.PutItem(context.Background(), &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item:      item,
+	})
+
+	if err != nil {
+		log.Printf("Failed to save game to DynamoDB: %v", err)
+		dynamoDBOps.WithLabelValues("PutItem", "error").Inc()
+	} else {
+		log.Printf("Game saved to DynamoDB: %s", gameId)
+		dynamoDBOps.WithLabelValues("PutItem", "success").Inc()
+	}
 }
 
 func metricsMiddleware(endpoint string, next http.HandlerFunc) http.HandlerFunc {
@@ -115,6 +181,9 @@ func gameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Save to DynamoDB (async)
+	go saveGameToDynamoDB(result)
+
 	playerGamesTotal.WithLabelValues(result.Player1).Inc()
 	playerGamesTotal.WithLabelValues(result.Player2).Inc()
 
@@ -149,6 +218,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	initDynamoDB()
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8081"
