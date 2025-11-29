@@ -12,3 +12,4 @@ spec:
   memoryRequest: "16Mi"
   memoryLimit: "64Mi"
   albId: "app/k8s-tictacto-tictacto-56b83df6f7/0cc7d8fbc1f5c80e"
+  albUrl: "http://k8s-tictacto-tictacto-56b83df6f7-604702081.ap-northeast-2.elb.amazonaws.com"

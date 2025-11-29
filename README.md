@@ -114,6 +114,7 @@ This project uses the following AWS managed services:
 | **DynamoDB Table (ACK)** | Game persistence table created via AWS Controllers for Kubernetes |
 | **IAM Role & Policy (ACK)** | Per-environment IAM resources for DynamoDB access |
 | **EKS Pod Identity** | Secure pod-to-AWS authentication without static credentials |
+| **Synthetic Monitoring** | CronJob-based health checks with Prometheus metrics |
 | **Resource Limits** | CPU/memory requests and limits defined |
 | **Health Probes** | Liveness and readiness probes configured |
 | **Security Context** | Non-root, read-only filesystem, dropped capabilities |
@@ -131,6 +132,9 @@ tictactoe-k8s/
 ├── backend/
 │   ├── main.go             # Go backend with Prometheus metrics
 │   └── Dockerfile          # Multi-stage build
+├── synthetic-monitor/
+│   ├── main.go             # Synthetic monitoring tests
+│   └── Dockerfile          # Distroless container
 ├── k8s/kro/
 │   ├── tictactoe-rgd.yaml  # KRO ResourceGraphDefinition
 │   ├── dev/dev.yaml        # Dev instance (1 replica)
