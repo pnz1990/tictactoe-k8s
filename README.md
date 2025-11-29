@@ -15,6 +15,7 @@ This project uses the following AWS managed services:
 | **Amazon Managed Prometheus (AMP)** | `ws-62f6ab4b-6a1c-4971-806e-dee13a1e1e95` | Metrics storage |
 | **Amazon EKS** | `unique-lofi-goose` | Kubernetes cluster |
 | **AWS-managed ArgoCD** | Managed service | GitOps continuous deployment |
+| **Amazon DynamoDB** | `tictactoe-games-{env}` | Game state persistence |
 
 **Note:** ArgoCD, Grafana, and Prometheus are AWS-managed services. You cannot access their logs, configurations, or internal resources directly. All management is done through:
 - ArgoCD: Application CRs in the cluster
@@ -110,6 +111,9 @@ This project uses the following AWS managed services:
 | Feature | Description |
 |---------|-------------|
 | **KRO ResourceGraphDefinition** | Custom TicTacToeApp API for standardized deployments |
+| **DynamoDB Table (ACK)** | Game persistence table created via AWS Controllers for Kubernetes |
+| **IAM Role & Policy (ACK)** | Per-environment IAM resources for DynamoDB access |
+| **EKS Pod Identity** | Secure pod-to-AWS authentication without static credentials |
 | **Resource Limits** | CPU/memory requests and limits defined |
 | **Health Probes** | Liveness and readiness probes configured |
 | **Security Context** | Non-root, read-only filesystem, dropped capabilities |
