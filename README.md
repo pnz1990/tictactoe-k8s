@@ -27,7 +27,7 @@ This project uses the following AWS managed services:
 
 | Environment | URL |
 |-------------|-----|
-| **Dev** | http://k8s-tictacto-tictacto-74ef9eee48-1547512973.ap-northeast-2.elb.amazonaws.com |
+| **Dev** | http://k8s-tictacto-tictacto-74ef9eee48-1185232516.ap-northeast-2.elb.amazonaws.com |
 | **Staging** | http://k8s-tictacto-tictacto-56b83df6f7-604702081.ap-northeast-2.elb.amazonaws.com |
 | **Production** | http://k8s-tictacto-tictacto-07fc5efb78-893177350.ap-northeast-2.elb.amazonaws.com |
 
