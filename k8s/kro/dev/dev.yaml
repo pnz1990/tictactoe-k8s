@@ -4,11 +4,11 @@ metadata:
   name: tictactoe-dev
 spec:
   environment: dev
-  imageTag: "e2f0cdf"
+  imageTag: e2f0cdf
   replicas: 1
   backendReplicas: 1
-  cpuRequest: "10m"
-  cpuLimit: "100m"
-  memoryRequest: "16Mi"
-  memoryLimit: "64Mi"
+  cpuRequest: 10m
+  cpuLimit: 100m
+  memoryRequest: 16Mi
+  memoryLimit: 64Mi
   albId: "app/k8s-tictacto-tictacto-74ef9eee48/2e6939d43dbb0711"
