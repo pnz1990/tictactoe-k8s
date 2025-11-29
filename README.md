@@ -286,6 +286,14 @@ kubectl port-forward -n tictactoe-dev svc/tictactoe 8080:80
 - **Push to `main`** with changes in `app/` → Builds and pushes `latest` + SHA tag
 - **Push tag `v*`** → Builds and pushes semantic version tags
 
+### Required Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `PNZ_PAT` | Personal Access Token for promotion workflows to bypass branch protection on staging/prod |
+
+**Important:** The `PNZ_PAT` secret is required for the promotion workflows (`promote-staging.yaml`, `promote-prod.yaml`) to push image tag updates to protected branches. Without this PAT, the sync-image-tag jobs will fail with "protected branch hook declined" errors.
+
 ### Manual Release
 
 ```bash
