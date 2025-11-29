@@ -8,4 +8,4 @@ resources:
 - nginx-config.yaml
 - ingress.yaml
 - backend/
-# Webhook test Fri 28 Nov 2025 17:33:36 PST
+# Webhook test 2
