@@ -2,13 +2,16 @@ name: Promote to Staging
 
 on:
   workflow_dispatch:
+  push:
+    branches: [staging]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
-  promote:
+  create-pr:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -26,3 +29,25 @@ jobs:
             || echo "PR already exists or no changes to promote"
         env:
           GH_TOKEN: ${{ github.token }}
+
+  sync-image-tag:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: staging
+      
+      - name: Sync image tag from dev to staging
+        run: |
+          DEV_TAG=$(grep 'imageTag:' k8s/kro/dev/dev.yaml | sed 's/.*imageTag: *"\?\([^"]*\)"\?/\1/')
+          STAGING_TAG=$(grep 'imageTag:' k8s/kro/staging/staging.yaml | sed 's/.*imageTag: *"\?\([^"]*\)"\?/\1/')
+          
+          if [ "$DEV_TAG" != "$STAGING_TAG" ]; then
+            sed -i "s|imageTag:.*|imageTag: $DEV_TAG|" k8s/kro/staging/staging.yaml
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add k8s/kro/staging/staging.yaml
+            git commit -m "chore: sync staging image tag to $DEV_TAG [skip ci]"
+            git push
+          fi

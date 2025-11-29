@@ -2,13 +2,16 @@ name: Promote to Production
 
 on:
   workflow_dispatch:
+  push:
+    branches: [prod]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
-  promote:
+  create-pr:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -26,3 +29,25 @@ jobs:
             || echo "PR already exists or no changes to promote"
         env:
           GH_TOKEN: ${{ github.token }}
+
+  sync-image-tag:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: prod
+      
+      - name: Sync image tag from staging to prod
+        run: |
+          STAGING_TAG=$(grep 'imageTag:' k8s/kro/staging/staging.yaml | sed 's/.*imageTag: *"\?\([^"]*\)"\?/\1/')
+          PROD_TAG=$(grep 'imageTag:' k8s/kro/prod/prod.yaml | sed 's/.*imageTag: *"\?\([^"]*\)"\?/\1/')
+          
+          if [ "$STAGING_TAG" != "$PROD_TAG" ]; then
+            sed -i "s|imageTag:.*|imageTag: $STAGING_TAG|" k8s/kro/prod/prod.yaml
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add k8s/kro/prod/prod.yaml
+            git commit -m "chore: sync prod image tag to $STAGING_TAG [skip ci]"
+            git push
+          fi
