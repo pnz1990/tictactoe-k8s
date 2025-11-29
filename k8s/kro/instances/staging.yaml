@@ -1,0 +1,13 @@
+apiVersion: kro.run/v1alpha1
+kind: TicTacToeApp
+metadata:
+  name: tictactoe-staging
+spec:
+  environment: staging
+  imageTag: "7f8df39"
+  replicas: 2
+  backendReplicas: 2
+  cpuRequest: "50m"
+  cpuLimit: "200m"
+  memoryRequest: "16Mi"
+  memoryLimit: "64Mi"

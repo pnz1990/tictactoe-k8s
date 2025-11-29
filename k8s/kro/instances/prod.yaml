@@ -1,0 +1,13 @@
+apiVersion: kro.run/v1alpha1
+kind: TicTacToeApp
+metadata:
+  name: tictactoe-prod
+spec:
+  environment: prod
+  imageTag: "7f8df39"
+  replicas: 3
+  backendReplicas: 3
+  cpuRequest: "100m"
+  cpuLimit: "500m"
+  memoryRequest: "32Mi"
+  memoryLimit: "128Mi"

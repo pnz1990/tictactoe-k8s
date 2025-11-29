@@ -1,0 +1,336 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: tictactoe-application
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: TicTacToeApp
+    spec:
+      environment: string | required=true description="Environment name (dev, staging, prod)"
+      imageTag: string | required=true description="Image tag for frontend and backend"
+      replicas: integer | default=1 minimum=1 maximum=10 description="Number of frontend replicas"
+      backendReplicas: integer | default=1 minimum=1 maximum=10 description="Number of backend replicas"
+      cpuRequest: string | default="10m"
+      cpuLimit: string | default="100m"
+      memoryRequest: string | default="16Mi"
+      memoryLimit: string | default="64Mi"
+    status:
+      frontendReady: ${frontendDeployment.status.availableReplicas >= frontendDeployment.spec.replicas}
+      backendReady: ${backendDeployment.status.availableReplicas >= backendDeployment.spec.replicas}
+
+  resources:
+    # Namespace
+    - id: appNamespace
+      template:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: tictactoe-${schema.spec.environment}
+
+    # Nginx ConfigMap
+    - id: nginxConfig
+      template:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: nginx-config
+          namespace: ${appNamespace.metadata.name}
+        data:
+          nginx.conf: |
+            worker_processes auto;
+            error_log /dev/stderr warn;
+            pid /run/nginx.pid;
+            events { worker_connections 1024; }
+            http {
+                include /etc/nginx/mime.types;
+                default_type application/octet-stream;
+                log_format json_combined escape=json '{"time":"$time_iso8601","remote_addr":"$remote_addr","method":"$request_method","uri":"$uri","status":$status,"body_bytes_sent":$body_bytes_sent,"request_time":$request_time}';
+                access_log /dev/stdout json_combined;
+                sendfile on;
+                keepalive_timeout 65;
+                client_body_temp_path /var/lib/nginx/tmp/client_body;
+                proxy_temp_path /var/lib/nginx/tmp/proxy;
+                fastcgi_temp_path /var/lib/nginx/tmp/fastcgi;
+                uwsgi_temp_path /var/lib/nginx/tmp/uwsgi;
+                scgi_temp_path /var/lib/nginx/tmp/scgi;
+                server {
+                    listen 8080;
+                    server_name localhost;
+                    root /usr/share/nginx/html;
+                    index index.html;
+                    sub_filter '__ENV__' '${schema.spec.environment}';
+                    sub_filter_once off;
+                    sub_filter_types text/html application/javascript;
+                    location / { try_files $uri $uri/ =404; }
+                    location /stub_status { stub_status; allow 127.0.0.1; deny all; }
+                    location /healthz { return 200 'ok'; add_header Content-Type text/plain; }
+                }
+            }
+
+    # Frontend Deployment
+    - id: frontendDeployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: tictactoe
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          replicas: ${schema.spec.replicas}
+          selector:
+            matchLabels:
+              app: tictactoe
+          template:
+            metadata:
+              labels:
+                app: tictactoe
+              annotations:
+                prometheus.io/scrape: "true"
+                prometheus.io/port: "9113"
+                prometheus.io/path: "/metrics"
+            spec:
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+                fsGroup: 65532
+              initContainers:
+              - name: init-dirs
+                image: busybox:stable
+                command: ['sh', '-c', 'mkdir -p /var/lib/nginx/tmp/client_body /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/fastcgi /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi']
+                securityContext:
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                volumeMounts:
+                - name: lib
+                  mountPath: /var/lib/nginx
+              containers:
+              - name: tictactoe
+                image: ghcr.io/pnz1990/tictactoe-k8s:${schema.spec.imageTag}
+                ports:
+                - containerPort: 8080
+                  name: http
+                resources:
+                  requests:
+                    cpu: ${schema.spec.cpuRequest}
+                    memory: ${schema.spec.memoryRequest}
+                  limits:
+                    cpu: ${schema.spec.cpuLimit}
+                    memory: ${schema.spec.memoryLimit}
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop: [ALL]
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: 8080
+                  initialDelaySeconds: 3
+                  periodSeconds: 5
+                volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: cache
+                  mountPath: /var/cache/nginx
+                - name: run
+                  mountPath: /run
+                - name: lib
+                  mountPath: /var/lib/nginx
+                - name: nginx-conf
+                  mountPath: /etc/nginx/nginx.conf
+                  subPath: nginx.conf
+              - name: metrics
+                image: nginx/nginx-prometheus-exporter:1.5
+                args:
+                - -nginx.scrape-uri=http://localhost:8080/stub_status
+                ports:
+                - containerPort: 9113
+                  name: metrics
+                resources:
+                  requests:
+                    cpu: 5m
+                    memory: 8Mi
+                  limits:
+                    cpu: 50m
+                    memory: 32Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop: [ALL]
+              volumes:
+              - name: tmp
+                emptyDir: {}
+              - name: cache
+                emptyDir: {}
+              - name: run
+                emptyDir: {}
+              - name: lib
+                emptyDir: {}
+              - name: nginx-conf
+                configMap:
+                  name: nginx-config
+
+    # Frontend Service
+    - id: frontendService
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: tictactoe
+          namespace: ${appNamespace.metadata.name}
+          labels:
+            app: tictactoe
+        spec:
+          selector:
+            app: tictactoe
+          ports:
+          - port: 80
+            targetPort: 8080
+            name: http
+          - port: 9113
+            targetPort: 9113
+            name: metrics
+
+    # Backend Deployment
+    - id: backendDeployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          replicas: ${schema.spec.backendReplicas}
+          selector:
+            matchLabels:
+              app: tictactoe-backend
+          template:
+            metadata:
+              labels:
+                app: tictactoe-backend
+              annotations:
+                prometheus.io/scrape: "true"
+                prometheus.io/port: "8081"
+                prometheus.io/path: "/metrics"
+            spec:
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+                fsGroup: 65532
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+              - name: backend
+                image: ghcr.io/pnz1990/tictactoe-k8s-backend:${schema.spec.imageTag}
+                ports:
+                - containerPort: 8081
+                  name: http
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 32Mi
+                  limits:
+                    cpu: 100m
+                    memory: 128Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop: [ALL]
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                readinessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 3
+                  periodSeconds: 5
+
+    # Backend Service
+    - id: backendService
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          selector:
+            app: tictactoe-backend
+          ports:
+          - port: 80
+            targetPort: 8081
+            name: http
+
+    # Ingress
+    - id: ingress
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: tictactoe
+          namespace: ${appNamespace.metadata.name}
+          annotations:
+            alb.ingress.kubernetes.io/scheme: internet-facing
+            alb.ingress.kubernetes.io/target-type: ip
+        spec:
+          ingressClassName: alb
+          rules:
+          - http:
+              paths:
+              - path: /api
+                pathType: Prefix
+                backend:
+                  service:
+                    name: tictactoe-backend
+                    port:
+                      number: 80
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: tictactoe
+                    port:
+                      number: 80
+
+    # PodDisruptionBudget - Frontend
+    - id: frontendPdb
+      template:
+        apiVersion: policy/v1
+        kind: PodDisruptionBudget
+        metadata:
+          name: tictactoe
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          minAvailable: 1
+          selector:
+            matchLabels:
+              app: tictactoe
+
+    # PodDisruptionBudget - Backend
+    - id: backendPdb
+      template:
+        apiVersion: policy/v1
+        kind: PodDisruptionBudget
+        metadata:
+          name: tictactoe-backend
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          minAvailable: 1
+          selector:
+            matchLabels:
+              app: tictactoe-backend
