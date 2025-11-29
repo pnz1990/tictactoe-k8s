@@ -79,19 +79,15 @@ func testFrontendHealth(albURL string) error {
 }
 
 func testBackendHealth(albURL string) error {
-	resp, err := http.Get(albURL + "/api/healthz")
+	resp, err := http.Get(albURL + "/api/game")
 	if err != nil {
-		// Try alternative endpoint
-		resp, err = http.Get(albURL + "/api/game")
-		if err != nil {
-			return fmt.Errorf("request failed: %w", err)
-		}
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Backend returns 405 for GET on /api/game which is expected
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMethodNotAllowed {
-		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	// Backend returns 405 for GET on /api/game which means it's alive
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		return fmt.Errorf("unexpected status: %d (expected 405)", resp.StatusCode)
 	}
 	return nil
 }
