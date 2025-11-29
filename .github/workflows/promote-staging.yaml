@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: staging
+          token: ${{ secrets.PNZ_PAT }}
       
       - name: Sync image tag from dev to staging
         run: |
