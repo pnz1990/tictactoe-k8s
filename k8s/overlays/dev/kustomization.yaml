@@ -9,10 +9,10 @@ resources:
 images:
 - name: ghcr.io/pnz1990/tictactoe-k8s
   newName: ghcr.io/pnz1990/tictactoe-k8s
-  newTag: "ce9949e"
+  newTag: "7f8df39"
 - name: ghcr.io/pnz1990/tictactoe-k8s-backend
   newName: ghcr.io/pnz1990/tictactoe-k8s-backend
-  newTag: "ce9949e"
+  newTag: "7f8df39"
 patches:
 - patch: |-
     - op: replace
