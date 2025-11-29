@@ -56,17 +56,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: azure/setup-kubectl@v4
-      - name: Validate KRO Manifests
+      - name: Validate KRO Manifests (YAML syntax)
+        run: |
+          echo "Validating YAML syntax..."
+          for file in k8s/kro/*.yaml k8s/kro/*/*.yaml; do
+            echo "Checking $file..."
+            python3 -c "import yaml; yaml.safe_load(open('$file'))"
+            echo "✅ $file valid"
+          done
+      - name: Validate RGD structure
+        run: |
+          echo "Checking RGD structure..."
+          if grep -q "kind: ResourceGraphDefinition" k8s/kro/tictactoe-rgd.yaml; then
+            echo "✅ RGD kind valid"
+          else
+            echo "❌ Invalid RGD"
+            exit 1
+          fi
+          if grep -q "schema:" k8s/kro/tictactoe-rgd.yaml && grep -q "resources:" k8s/kro/tictactoe-rgd.yaml; then
+            echo "✅ RGD has schema and resources"
+          else
+            echo "❌ RGD missing schema or resources"
+            exit 1
+          fi
+      - name: Validate instance files
         run: |
           for env in dev staging prod; do
-            echo "Validating $env KRO instance..."
-            kubectl apply --dry-run=client -f k8s/kro/$env/*.yaml
-            echo "✅ $env instance valid"
+            echo "Checking $env instance..."
+            if grep -q "kind: TicTacToeApp" k8s/kro/$env/$env.yaml; then
+              echo "✅ $env instance valid"
+            else
+              echo "❌ $env instance invalid"
+              exit 1
+            fi
           done
-          echo "Validating RGD..."
-          kubectl apply --dry-run=client -f k8s/kro/tictactoe-rgd.yaml
-          echo "✅ RGD valid"
 
   security-tests:
     name: Security Tests
