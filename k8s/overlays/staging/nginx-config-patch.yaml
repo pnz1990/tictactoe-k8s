@@ -45,8 +45,7 @@ data:
             root /usr/share/nginx/html;
             index index.html;
 
-            # Inject environment variable into HTML
-            sub_filter '__ENV__' 'dev';
+            sub_filter '__ENV__' 'staging';
             sub_filter_once off;
             sub_filter_types text/html application/javascript;
 
