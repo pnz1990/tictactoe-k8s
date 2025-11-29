@@ -10,9 +10,9 @@ patchesStrategicMerge:
 - nginx-config-patch.yaml
 images:
 - name: ghcr.io/pnz1990/tictactoe-k8s
-  newTag: staging
+  newTag: "7f8df39"
 - name: ghcr.io/pnz1990/tictactoe-k8s-backend
-  newTag: staging
+  newTag: "7f8df39"
 patches:
 - patch: |-
     - op: replace
