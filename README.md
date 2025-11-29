@@ -37,22 +37,19 @@ This project uses the following AWS managed services:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              GitHub Repository                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  app/                    │  backend/              │  k8s/                   │
-│  ├── index.html          │  ├── main.go           │  ├── base/              │
-│  └── Dockerfile          │  ├── go.mod            │  │   ├── frontend/      │
-│                          │  └── Dockerfile        │  │   └── backend/       │
-│                          │                        │  └── overlays/          │
-│                          │                        │      ├── dev/           │
-│                          │                        │      ├── staging/       │
-│                          │                        │      └── prod/          │
+│  app/                    │  backend/              │  k8s/kro/               │
+│  ├── index.html          │  ├── main.go           │  ├── tictactoe-rgd.yaml │
+│  └── Dockerfile          │  ├── go.mod            │  ├── dev/dev.yaml       │
+│                          │  └── Dockerfile        │  ├── staging/staging.yaml│
+│                          │                        │  └── prod/prod.yaml     │
 └─────────────────────────────────────────────────────────────────────────────┘
                 │                                    │
                 ▼                                    ▼
 ┌───────────────────────────┐         ┌───────────────────────────────────────┐
 │   GitHub Actions CI/CD    │         │            ArgoCD (GitOps)            │
 │  ┌─────────────────────┐  │         │  ┌─────────────────────────────────┐  │
-│  │ Build Frontend      │  │         │  │ Watches k8s/ for changes        │  │
-│  │ Build Backend       │  │         │  │ Auto-syncs to Kubernetes        │  │
+│  │ Build Frontend      │  │         │  │ Watches k8s/kro/ for changes    │  │
+│  │ Build Backend       │  │         │  │ Deploys KRO instances           │  │
 │  │ Trivy Scan          │  │         │  │ Self-healing enabled            │  │
 │  │ Cosign Sign         │  │         │  └─────────────────────────────────┘  │
 │  └─────────────────────┘  │         └───────────────────────────────────────┘
@@ -61,8 +58,8 @@ This project uses the following AWS managed services:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           Kubernetes Cluster                                 │
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │                              ALB Ingress                                ││
-│  │                    /api/* → Backend    /* → Frontend                    ││
+│  │                    KRO (Kube Resource Orchestrator)                     ││
+│  │         TicTacToeApp instances → Managed Resources                      ││
 │  └─────────────────────────────────────────────────────────────────────────┘│
 │           │                                              │                   │
 │           ▼                                              ▼                   │
@@ -108,17 +105,17 @@ This project uses the following AWS managed services:
 | **Minimal Attack Surface** | No shell, no package manager |
 | **Signed & Verified** | Cosign signature for supply chain security |
 
-### Kubernetes Manifests
+### Kubernetes Manifests (KRO)
 
 | Feature | Description |
 |---------|-------------|
+| **KRO ResourceGraphDefinition** | Custom TicTacToeApp API for standardized deployments |
 | **Resource Limits** | CPU/memory requests and limits defined |
 | **Health Probes** | Liveness and readiness probes configured |
-| **Security Context** | Non-root, read-only filesystem, dropped capabilities, seccomp |
-| **Network Policy** | Ingress on 8080/9113, egress to DNS only |
+| **Security Context** | Non-root, read-only filesystem, dropped capabilities |
 | **Pod Disruption Budget** | Ensures availability during cluster maintenance |
 | **ALB Ingress** | EKS Auto Mode Application Load Balancer per environment |
-| **Kustomize Overlays** | Environment-specific configs (dev/staging/prod) |
+| **Grafana Dashboards** | Ops and Business dashboards auto-created per environment |
 
 ## Directory Structure
 
@@ -127,21 +124,18 @@ tictactoe-k8s/
 ├── app/
 │   ├── index.html          # Tic Tac Toe game
 │   └── Dockerfile          # Multi-stage build with Chainguard nginx
-├── k8s/
-│   ├── base/               # Shared Kubernetes manifests
-│   │   ├── deployment.yaml
-│   │   ├── service.yaml
-│   │   ├── networkpolicy.yaml
-│   │   ├── pdb.yaml
-│   │   └── kustomization.yaml
-│   └── overlays/           # Environment-specific overrides
-│       ├── dev/            # 1 replica, minimal resources
-│       ├── staging/        # 2 replicas, moderate resources
-│       └── prod/           # 3 replicas, full resources
-├── .github/
-│   └── workflows/
-│       └── build.yaml      # CI/CD pipeline
-├── renovate.json           # Automated dependency updates
+├── backend/
+│   ├── main.go             # Go backend with Prometheus metrics
+│   └── Dockerfile          # Multi-stage build
+├── k8s/kro/
+│   ├── tictactoe-rgd.yaml  # KRO ResourceGraphDefinition
+│   ├── dev/dev.yaml        # Dev instance (1 replica)
+│   ├── staging/staging.yaml # Staging instance (2 replicas)
+│   └── prod/prod.yaml      # Prod instance (3 replicas)
+├── .github/workflows/
+│   ├── build.yaml          # CI/CD pipeline
+│   └── comprehensive-tests.yaml
+├── tests/                  # Test suites
 └── README.md
 ```
 

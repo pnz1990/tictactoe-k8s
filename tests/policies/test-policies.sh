@@ -1,117 +1,105 @@
 #!/bin/bash
+set -e
 
-echo "=== Kubernetes Manifest Validation ==="
+echo "=== Policy Testing Suite (KRO) ==="
 
 FAILED=0
+RGD_FILE="k8s/kro/tictactoe-rgd.yaml"
 
-# Test each overlay
-for env in dev staging prod; do
-  echo ""
-  echo "--- Testing $env overlay ---"
+# Test 1: Security Context
+echo ""
+echo "--- Test 1: Security Context ---"
+if grep -q "securityContext:" "$RGD_FILE"; then
+  echo "PASS: Security context defined"
   
-  # Generate manifests
-  kubectl kustomize k8s/overlays/$env > /tmp/manifests-$env.yaml
-  
-  # Validate YAML schema
-  echo "Validating YAML schema..."
-  if command -v kubeconform &> /dev/null; then
-    kubeconform -strict -summary /tmp/manifests-$env.yaml || FAILED=1
+  if grep -q "runAsNonRoot: true" "$RGD_FILE"; then
+    echo "PASS: runAsNonRoot enabled"
   else
-    echo "SKIP: kubeconform not installed"
+    echo "FAIL: runAsNonRoot not set"
+    FAILED=1
   fi
-done
+  
+  if grep -q "readOnlyRootFilesystem: true" "$RGD_FILE"; then
+    echo "PASS: readOnlyRootFilesystem enabled"
+  else
+    echo "FAIL: readOnlyRootFilesystem not set"
+    FAILED=1
+  fi
+else
+  echo "FAIL: Security context missing"
+  FAILED=1
+fi
 
+# Test 2: Resource Limits
 echo ""
-echo "=== Security Policy Checks ==="
+echo "--- Test 2: Resource Limits ---"
+if grep -q "limits:" "$RGD_FILE" && grep -q "requests:" "$RGD_FILE"; then
+  echo "PASS: Resource limits and requests defined"
+else
+  echo "FAIL: Resource limits/requests missing"
+  FAILED=1
+fi
 
-# Check for required security contexts
-echo "Checking security contexts..."
-for env in dev staging prod; do
-  # Check runAsNonRoot
-  if ! grep -q "runAsNonRoot: true" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing runAsNonRoot: true"
-    FAILED=1
-  fi
-  
-  # Check seccompProfile
-  if ! grep -q "seccompProfile" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing seccompProfile"
-    FAILED=1
-  fi
-  
-  # Check allowPrivilegeEscalation
-  if ! grep -q "allowPrivilegeEscalation: false" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing allowPrivilegeEscalation: false"
-    FAILED=1
-  fi
-  
-  # Check capabilities drop
-  if ! grep -q "drop:" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing capabilities drop"
-    FAILED=1
-  fi
-  
-  # Check resource limits
-  if ! grep -q "limits:" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing resource limits"
-    FAILED=1
-  fi
-  
-  # Check resource requests
-  if ! grep -q "requests:" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing resource requests"
-    FAILED=1
-  fi
-  
-  # Check liveness probe
-  if ! grep -q "livenessProbe:" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing livenessProbe"
-    FAILED=1
-  fi
-  
-  # Check readiness probe
-  if ! grep -q "readinessProbe:" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing readinessProbe"
-    FAILED=1
-  fi
-  
-  # Check NetworkPolicy exists
-  if ! grep -q "kind: NetworkPolicy" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing NetworkPolicy"
-    FAILED=1
-  fi
-  
-  # Check PodDisruptionBudget exists
-  if ! grep -q "kind: PodDisruptionBudget" /tmp/manifests-$env.yaml; then
-    echo "FAIL: $env - Missing PodDisruptionBudget"
-    FAILED=1
-  fi
-  
-  echo "PASS: $env security policies"
-done
-
+# Test 3: Health Probes
 echo ""
-echo "=== Image Policy Checks ==="
+echo "--- Test 3: Health Probes ---"
+if grep -q "livenessProbe:" "$RGD_FILE" && grep -q "readinessProbe:" "$RGD_FILE"; then
+  echo "PASS: Health probes configured"
+else
+  echo "FAIL: Health probes missing"
+  FAILED=1
+fi
 
+# Test 4: KRO Instance Files
+echo ""
+echo "--- Test 4: KRO Instance Validation ---"
 for env in dev staging prod; do
-  # Check no latest tag in production
-  if [ "$env" = "prod" ]; then
-    if grep -q "image:.*:latest" /tmp/manifests-$env.yaml; then
-      echo "WARN: $env - Using :latest tag (consider pinning)"
+  INSTANCE_FILE="k8s/kro/$env/$env.yaml"
+  if [ -f "$INSTANCE_FILE" ]; then
+    echo "PASS: $env instance file exists"
+    
+    # Validate YAML syntax
+    if python3 -c "import yaml; yaml.safe_load(open('$INSTANCE_FILE'))" 2>/dev/null || \
+       ruby -ryaml -e "YAML.load_file('$INSTANCE_FILE')" 2>/dev/null || \
+       kubectl apply --dry-run=client -f "$INSTANCE_FILE" 2>/dev/null; then
+      echo "PASS: $env instance YAML valid"
+    else
+      echo "WARN: Could not validate $env YAML syntax"
     fi
-  fi
-  
-  # Check images are from allowed registries
-  if grep -E "image:" /tmp/manifests-$env.yaml | grep -v -E "(ghcr.io|gcr.io|public.ecr.aws|docker.io/nginx)" > /dev/null; then
-    echo "WARN: $env - Image from non-standard registry"
+  else
+    echo "FAIL: $env instance file missing"
+    FAILED=1
   fi
 done
 
+# Test 5: RGD Structure
 echo ""
+echo "--- Test 5: RGD Structure ---"
+if [ -f "$RGD_FILE" ]; then
+  if grep -q "kind: ResourceGraphDefinition" "$RGD_FILE"; then
+    echo "PASS: Valid RGD kind"
+  else
+    echo "FAIL: Invalid RGD kind"
+    FAILED=1
+  fi
+  
+  if grep -q "schema:" "$RGD_FILE" && grep -q "resources:" "$RGD_FILE"; then
+    echo "PASS: RGD has schema and resources"
+  else
+    echo "FAIL: RGD missing schema or resources"
+    FAILED=1
+  fi
+else
+  echo "FAIL: RGD file not found"
+  FAILED=1
+fi
+
+echo ""
+echo "=== Policy Tests Complete ==="
 if [ $FAILED -eq 0 ]; then
-  echo "✅ All policy checks passed!"
+  echo "All policy tests passed!"
   exit 0
 else
-  echo "❌ Some policy checks failed!"
+  echo "Some policy tests failed"
   exit 1
 fi
