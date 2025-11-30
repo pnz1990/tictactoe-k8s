@@ -11,4 +11,5 @@ spec:
   cpuLimit: "500m"
   memoryRequest: "32Mi"
   memoryLimit: "128Mi"
-  albId: "app/k8s-tictacto-tictacto-07fc5efb78/f772a119281e76d4"
+  albId: "app/k8s-tictacto-tictacto-07fc5efb78/f0f2f2f2f2f2f2f2"
+  albUrl: "http://k8s-tictacto-tictacto-07fc5efb78-893177350.ap-northeast-2.elb.amazonaws.com"

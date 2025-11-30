@@ -6,6 +6,7 @@ on:
     paths: 
       - 'app/**'
       - 'backend/**'
+      - 'synthetic-monitor/**'
     tags: ['v*']
 
 env:
@@ -121,3 +122,37 @@ jobs:
           cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}
           syft ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }} -o spdx-json > sbom.json
           cosign attest --yes --predicate sbom.json --type spdx ${{ env.REGISTRY }}/${{ github.repository }}-backend@${{ steps.build.outputs.digest }}
+
+  synthetic-monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-synthetic
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push synthetic monitor
+        uses: docker/build-push-action@v6
+        with:
+          context: synthetic-monitor
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=synthetic
+          cache-to: type=gha,mode=max,scope=synthetic

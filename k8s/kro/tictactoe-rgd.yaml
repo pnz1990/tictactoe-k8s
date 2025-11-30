@@ -16,6 +16,7 @@ spec:
       memoryRequest: string | default="16Mi"
       memoryLimit: string | default="64Mi"
       albId: string | default="" description="ALB ID for CloudWatch metrics (e.g., app/k8s-tictacto-tictacto-74ef9eee48/abc123)"
+      albUrl: string | default="" description="ALB URL for synthetic monitoring"
     status:
       frontendReady: ${frontendDeployment.status.availableReplicas >= frontendDeployment.spec.replicas}
       backendReady: ${backendDeployment.status.availableReplicas >= backendDeployment.spec.replicas}
@@ -488,7 +489,9 @@ spec:
                 {"id": 14, "title": "ALB - 5xx Errors", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 16, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HTTPCode_ELB_5XX_Count", "statistics": ["Sum"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}], "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}},
                 {"id": 15, "title": "ALB - Healthy Hosts", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 20, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistics": ["Average"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}]},
                 {"id": 16, "title": "DynamoDB - Operations/sec", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (operation, status)", "legendFormat": "{{operation}} - {{status}}"}]},
-                {"id": 17, "title": "DynamoDB - Success Rate", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 8, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\", status=\"success\"}[5m])) / sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(100)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}}}}
+                {"id": 17, "title": "DynamoDB - Success Rate", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 8, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\", status=\"success\"}[5m])) / sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(100)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}}}},
+                {"id": 18, "title": "Synthetic Tests - Status", "type": "stat", "gridPos": {"h": 6, "w": 6, "x": 12, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "synthetic_test_success{environment=\"${schema.spec.environment}\"}", "legendFormat": "{{test}}"}], "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"1": {"text": "PASS", "color": "green"}, "0": {"text": "FAIL", "color": "red"}}}]}}},
+                {"id": 19, "title": "Synthetic Tests - Duration", "type": "timeseries", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "synthetic_test_duration_seconds{environment=\"${schema.spec.environment}\"}", "legendFormat": "{{test}}"}], "fieldConfig": {"defaults": {"unit": "s"}}}
               ]
             }
 
@@ -522,3 +525,56 @@ spec:
                 {"id": 8, "title": "👥 Most Active Players (24h)", "type": "bargauge", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "topk(10, sum by (player) (increase(tictactoe_player_games_total{namespace=\"tictactoe-${schema.spec.environment}\"}[24h])))", "legendFormat": "{{player}}"}], "options": {"orientation": "horizontal", "displayMode": "gradient"}, "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlPu"}}}}
               ]
             }
+
+    # Synthetic Monitor CronJob
+    - id: syntheticMonitor
+      template:
+        apiVersion: batch/v1
+        kind: CronJob
+        metadata:
+          name: synthetic-monitor
+          namespace: ${appNamespace.metadata.name}
+        spec:
+          schedule: "*/5 * * * *"
+          concurrencyPolicy: Forbid
+          successfulJobsHistoryLimit: 3
+          failedJobsHistoryLimit: 3
+          jobTemplate:
+            spec:
+              backoffLimit: 1
+              activeDeadlineSeconds: 120
+              template:
+                metadata:
+                  labels:
+                    app: synthetic-monitor
+                  annotations:
+                    prometheus.io/scrape: "true"
+                    prometheus.io/port: "9091"
+                spec:
+                  restartPolicy: Never
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65532
+                    runAsGroup: 65532
+                  containers:
+                  - name: monitor
+                    image: ghcr.io/pnz1990/tictactoe-k8s-synthetic:${schema.spec.imageTag}
+                    env:
+                    - name: ALB_URL
+                      value: ${schema.spec.albUrl}
+                    - name: ENVIRONMENT
+                      value: ${schema.spec.environment}
+                    - name: BACKEND_METRICS_URL
+                      value: http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/metrics
+                    resources:
+                      requests:
+                        cpu: 10m
+                        memory: 32Mi
+                      limits:
+                        cpu: 100m
+                        memory: 64Mi
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
