@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/push"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -125,61 +125,53 @@ func testGameRecording(albURL string) error {
 	return nil
 }
 
-func testMetricsEndpoint(backendMetricsURL string) error {
-	resp, err := http.Get(backendMetricsURL)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) < 100 {
-		return fmt.Errorf("metrics response too short")
-	}
-
-	return nil
+func runAllTests(albURL, env string) {
+	log.Printf("Running synthetic tests for %s", env)
+	runTest("frontend_health", env, func() error { return testFrontendHealth(albURL) })
+	runTest("backend_health", env, func() error { return testBackendHealth(albURL) })
+	runTest("game_recording", env, func() error { return testGameRecording(albURL) })
+	testTimestamp.WithLabelValues(env).Set(float64(time.Now().Unix()))
+	log.Printf("Synthetic tests completed")
 }
 
 func main() {
 	albURL := os.Getenv("ALB_URL")
 	env := os.Getenv("ENVIRONMENT")
-	pushgatewayURL := os.Getenv("PUSHGATEWAY_URL")
-	backendMetricsURL := os.Getenv("BACKEND_METRICS_URL")
+	interval := os.Getenv("TEST_INTERVAL")
+	if interval == "" {
+		interval = "60s"
+	}
 
 	if albURL == "" || env == "" {
 		log.Fatal("ALB_URL and ENVIRONMENT must be set")
 	}
 
-	log.Printf("Starting synthetic tests for %s environment", env)
+	testInterval, err := time.ParseDuration(interval)
+	if err != nil {
+		testInterval = 60 * time.Second
+	}
+
+	log.Printf("Starting synthetic monitor for %s environment", env)
 	log.Printf("ALB URL: %s", albURL)
+	log.Printf("Test interval: %s", testInterval)
 
-	// Run tests
-	runTest("frontend_health", env, func() error { return testFrontendHealth(albURL) })
-	runTest("backend_health", env, func() error { return testBackendHealth(albURL) })
-	runTest("game_recording", env, func() error { return testGameRecording(albURL) })
+	// Run tests immediately
+	runAllTests(albURL, env)
 
-	if backendMetricsURL != "" {
-		runTest("metrics_endpoint", env, func() error { return testMetricsEndpoint(backendMetricsURL) })
+	// Start metrics server
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ok"))
+		})
+		log.Printf("Metrics server starting on :9091")
+		log.Fatal(http.ListenAndServe(":9091", nil))
+	}()
+
+	// Run tests periodically
+	ticker := time.NewTicker(testInterval)
+	for range ticker.C {
+		runAllTests(albURL, env)
 	}
-
-	testTimestamp.WithLabelValues(env).Set(float64(time.Now().Unix()))
-
-	// Push metrics if pushgateway is configured
-	if pushgatewayURL != "" {
-		pusher := push.New(pushgatewayURL, "synthetic_monitor").
-			Grouping("environment", env).
-			Gatherer(prometheus.DefaultGatherer)
-
-		if err := pusher.Push(); err != nil {
-			log.Printf("Failed to push metrics: %v", err)
-		} else {
-			log.Printf("Metrics pushed to %s", pushgatewayURL)
-		}
-	}
-
-	log.Println("Synthetic tests completed")
 }
