@@ -526,55 +526,83 @@ spec:
               ]
             }
 
-    # Synthetic Monitor CronJob
+    # Synthetic Monitor Deployment
     - id: syntheticMonitor
       template:
-        apiVersion: batch/v1
-        kind: CronJob
+        apiVersion: apps/v1
+        kind: Deployment
         metadata:
           name: synthetic-monitor
           namespace: ${appNamespace.metadata.name}
         spec:
-          schedule: "*/5 * * * *"
-          concurrencyPolicy: Forbid
-          successfulJobsHistoryLimit: 3
-          failedJobsHistoryLimit: 3
-          jobTemplate:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: synthetic-monitor
+          template:
+            metadata:
+              labels:
+                app: synthetic-monitor
+              annotations:
+                prometheus.io/scrape: "true"
+                prometheus.io/port: "9091"
             spec:
-              backoffLimit: 1
-              activeDeadlineSeconds: 120
-              template:
-                metadata:
-                  labels:
-                    app: synthetic-monitor
-                  annotations:
-                    prometheus.io/scrape: "true"
-                    prometheus.io/port: "9091"
-                spec:
-                  restartPolicy: Never
-                  securityContext:
-                    runAsNonRoot: true
-                    runAsUser: 65532
-                    runAsGroup: 65532
-                  containers:
-                  - name: monitor
-                    image: ghcr.io/pnz1990/tictactoe-k8s-synthetic:${schema.spec.imageTag}
-                    env:
-                    - name: ALB_URL
-                      value: ${schema.spec.albUrl}
-                    - name: ENVIRONMENT
-                      value: ${schema.spec.environment}
-                    - name: BACKEND_METRICS_URL
-                      value: http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/metrics
-                    resources:
-                      requests:
-                        cpu: 10m
-                        memory: 32Mi
-                      limits:
-                        cpu: 100m
-                        memory: 64Mi
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      readOnlyRootFilesystem: true
-                      capabilities:
-                        drop: [ALL]
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+              containers:
+              - name: monitor
+                image: ghcr.io/pnz1990/tictactoe-k8s-synthetic:${schema.spec.imageTag}
+                ports:
+                - containerPort: 9091
+                  name: metrics
+                env:
+                - name: FRONTEND_URL
+                  value: http://tictactoe.${appNamespace.metadata.name}.svc.cluster.local
+                - name: BACKEND_URL
+                  value: http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local
+                - name: ENVIRONMENT
+                  value: ${schema.spec.environment}
+                - name: TEST_INTERVAL
+                  value: "300s"
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 9091
+                  initialDelaySeconds: 5
+                readinessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 9091
+                  initialDelaySeconds: 5
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 32Mi
+                  limits:
+                    cpu: 100m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop: [ALL]
+
+    # Synthetic Monitor Service (for Prometheus scraping)
+    - id: syntheticMonitorService
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: synthetic-monitor
+          namespace: ${appNamespace.metadata.name}
+          labels:
+            app: synthetic-monitor
+        spec:
+          selector:
+            app: synthetic-monitor
+          ports:
+          - port: 9091
+            targetPort: 9091
+            name: metrics
