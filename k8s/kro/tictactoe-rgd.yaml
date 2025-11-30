@@ -559,7 +559,7 @@ spec:
                   name: metrics
                 env:
                 - name: ALB_URL
-                  value: ${schema.spec.albUrl}
+                  value: http://tictactoe.${appNamespace.metadata.name}.svc.cluster.local
                 - name: ENVIRONMENT
                   value: ${schema.spec.environment}
                 - name: TEST_INTERVAL
