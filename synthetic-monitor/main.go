@@ -125,25 +125,26 @@ func testGameRecording(albURL string) error {
 	return nil
 }
 
-func runAllTests(albURL, env string) {
+func runAllTests(frontendURL, backendURL, env string) {
 	log.Printf("Running synthetic tests for %s", env)
-	runTest("frontend_health", env, func() error { return testFrontendHealth(albURL) })
-	runTest("backend_health", env, func() error { return testBackendHealth(albURL) })
-	runTest("game_recording", env, func() error { return testGameRecording(albURL) })
+	runTest("frontend_health", env, func() error { return testFrontendHealth(frontendURL) })
+	runTest("backend_health", env, func() error { return testBackendHealth(backendURL) })
+	runTest("game_recording", env, func() error { return testGameRecording(backendURL) })
 	testTimestamp.WithLabelValues(env).Set(float64(time.Now().Unix()))
 	log.Printf("Synthetic tests completed")
 }
 
 func main() {
-	albURL := os.Getenv("ALB_URL")
+	frontendURL := os.Getenv("FRONTEND_URL")
+	backendURL := os.Getenv("BACKEND_URL")
 	env := os.Getenv("ENVIRONMENT")
 	interval := os.Getenv("TEST_INTERVAL")
 	if interval == "" {
 		interval = "60s"
 	}
 
-	if albURL == "" || env == "" {
-		log.Fatal("ALB_URL and ENVIRONMENT must be set")
+	if frontendURL == "" || backendURL == "" || env == "" {
+		log.Fatal("FRONTEND_URL, BACKEND_URL and ENVIRONMENT must be set")
 	}
 
 	testInterval, err := time.ParseDuration(interval)
@@ -152,11 +153,12 @@ func main() {
 	}
 
 	log.Printf("Starting synthetic monitor for %s environment", env)
-	log.Printf("ALB URL: %s", albURL)
+	log.Printf("Frontend URL: %s", frontendURL)
+	log.Printf("Backend URL: %s", backendURL)
 	log.Printf("Test interval: %s", testInterval)
 
 	// Run tests immediately
-	runAllTests(albURL, env)
+	runAllTests(frontendURL, backendURL, env)
 
 	// Start metrics server
 	go func() {
@@ -172,6 +174,6 @@ func main() {
 	// Run tests periodically
 	ticker := time.NewTicker(testInterval)
 	for range ticker.C {
-		runAllTests(albURL, env)
+		runAllTests(frontendURL, backendURL, env)
 	}
 }

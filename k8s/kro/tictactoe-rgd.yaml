@@ -558,8 +558,10 @@ spec:
                 - containerPort: 9091
                   name: metrics
                 env:
-                - name: ALB_URL
+                - name: FRONTEND_URL
                   value: http://tictactoe.${appNamespace.metadata.name}.svc.cluster.local
+                - name: BACKEND_URL
+                  value: http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local
                 - name: ENVIRONMENT
                   value: ${schema.spec.environment}
                 - name: TEST_INTERVAL
