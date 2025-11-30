@@ -1,0 +1,11 @@
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY go.mod ./
+RUN go mod download || true
+COPY main.go .
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -o synthetic-monitor .
+
+FROM gcr.io/distroless/static:nonroot
+COPY --from=builder /app/synthetic-monitor /synthetic-monitor
+USER 65532:65532
+ENTRYPOINT ["/synthetic-monitor"]

@@ -4,7 +4,7 @@ metadata:
   name: tictactoe-staging
 spec:
   environment: staging
-  imageTag: 4641e1e
+  imageTag: 2c6f989
   replicas: 2
   backendReplicas: 2
   cpuRequest: "50m"
@@ -12,3 +12,4 @@ spec:
   memoryRequest: "16Mi"
   memoryLimit: "64Mi"
   albId: "app/k8s-tictacto-tictacto-56b83df6f7/0cc7d8fbc1f5c80e"
+  albUrl: "http://k8s-tictacto-tictacto-56b83df6f7-604702081.ap-northeast-2.elb.amazonaws.com"
