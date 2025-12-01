@@ -633,7 +633,7 @@ spec:
                 runAsGroup: 65532
               containers:
               - name: smoke-test
-                image: curlimages/curl:8.11.0
+                image: curlimages/curl:8.17.0
                 command:
                 - /bin/sh
                 - -c
