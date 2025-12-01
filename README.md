@@ -114,7 +114,8 @@ This project uses the following AWS managed services:
 | **DynamoDB Table (ACK)** | Game persistence table created via AWS Controllers for Kubernetes |
 | **IAM Role & Policy (ACK)** | Per-environment IAM resources for DynamoDB access |
 | **EKS Pod Identity** | Secure pod-to-AWS authentication without static credentials |
-| **Synthetic Monitoring** | CronJob-based health checks with Prometheus metrics |
+| **Synthetic Monitoring** | Continuous health checks with Prometheus metrics |
+| **ArgoCD PostSync Hook** | Smoke tests run after each deployment, blocks bad deploys |
 | **Resource Limits** | CPU/memory requests and limits defined |
 | **Health Probes** | Liveness and readiness probes configured |
 | **Security Context** | Non-root, read-only filesystem, dropped capabilities |
@@ -564,6 +565,28 @@ The backend exposes the following Prometheus metrics:
 - [x] Pruning enabled
 - [x] Branch-based promotion (main → staging → prod)
 - [x] Grafana Operator managing AMG dashboards
+- [x] PostSync hooks for deployment validation
+
+### Synthetic Monitoring & Smoke Tests
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| **Synthetic Monitor** | Deployment | Continuous health checks every 5 minutes |
+| **PostSync Smoke Test** | ArgoCD Hook | Validates deployment after each sync |
+
+**Synthetic Monitor Metrics:**
+- `synthetic_test_success{test, environment}` - Test result (1=pass, 0=fail)
+- `synthetic_test_duration_seconds{test, environment}` - Test duration
+
+**PostSync Smoke Test:**
+- Runs automatically after ArgoCD sync
+- Tests frontend health, backend health, and API endpoints
+- Failed tests mark sync as "Degraded"
+- Job auto-deletes on success
+
+**Business Dashboard Filtering:**
+- Synthetic test results (player names starting with "Synthetic") are filtered from business metrics
+- Ops dashboard shows all data including synthetic tests
 
 ## Related Repositories
 
