@@ -606,3 +606,61 @@ spec:
           - port: 9091
             targetPort: 9091
             name: metrics
+
+    # ArgoCD PostSync Hook - Smoke Test
+    - id: postSyncSmokeTest
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: post-sync-smoke-test
+          namespace: ${appNamespace.metadata.name}
+          annotations:
+            argocd.argoproj.io/hook: PostSync
+            argocd.argoproj.io/hook-delete-policy: HookSucceeded
+        spec:
+          ttlSecondsAfterFinished: 300
+          backoffLimit: 0
+          template:
+            spec:
+              restartPolicy: Never
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+              containers:
+              - name: smoke-test
+                image: curlimages/curl:8.11.0
+                command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Running post-sync smoke tests..."
+                  sleep 10
+                  
+                  echo "Test 1: Frontend health check"
+                  curl -sf http://tictactoe.${appNamespace.metadata.name}.svc.cluster.local/healthz || exit 1
+                  echo " ✓ Frontend OK"
+                  
+                  echo "Test 2: Backend health check"
+                  curl -sf http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/healthz || exit 1
+                  echo " ✓ Backend OK"
+                  
+                  echo "Test 3: Game API responds"
+                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/game)
+                  [ "$STATUS" = "405" ] || exit 1
+                  echo " ✓ API OK"
+                  
+                  echo "All smoke tests passed!"
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop: [ALL]
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 16Mi
+                  limits:
+                    cpu: 100m
+                    memory: 64Mi
