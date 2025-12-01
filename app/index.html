@@ -20,163 +20,290 @@
     body.dev { --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
     body.staging { --bg-gradient: linear-gradient(135deg, #2e1a1a 0%, #3e2116 50%, #60340f 100%); }
     body.prod { --bg-gradient: linear-gradient(135deg, #1a2e1a 0%, #16213e 50%, #0f4660 100%); }
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      max-width: 400px;
-      width: 100%;
-    }
-    .env-badge {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      padding: 8px 16px;
-      background: rgba(233, 69, 96, 0.8);
-      border-radius: 20px;
-      font-size: 0.9rem;
-      font-weight: bold;
-      text-transform: uppercase;
-    }
+    .container { display: flex; flex-direction: column; align-items: center; max-width: 400px; width: 100%; }
+    .env-badge { position: absolute; top: 20px; right: 20px; padding: 8px 16px; background: rgba(233, 69, 96, 0.8); border-radius: 20px; font-size: 0.9rem; font-weight: bold; text-transform: uppercase; }
     h1 { font-size: 2.5rem; margin-bottom: 1rem; text-shadow: 0 0 20px #e94560; text-align: center; }
     .status { font-size: 1.3rem; margin-bottom: 1.5rem; min-height: 2rem; color: #e94560; text-align: center; }
     .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 0 auto; }
-    .cell {
-      width: 100px; height: 100px;
-      background: rgba(255,255,255,0.1);
-      border: 2px solid #e94560;
-      border-radius: 10px;
-      font-size: 3rem; font-weight: bold;
-      cursor: pointer;
-      transition: all 0.3s;
-      display: flex; align-items: center; justify-content: center;
-    }
+    .cell { width: 100px; height: 100px; background: rgba(255,255,255,0.1); border: 2px solid #e94560; border-radius: 10px; font-size: 3rem; font-weight: bold; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
     .cell:hover { background: rgba(233,69,96,0.2); transform: scale(1.05); }
+    .cell.disabled { cursor: not-allowed; opacity: 0.7; }
     .cell.x { color: #00fff5; text-shadow: 0 0 15px #00fff5; }
     .cell.o { color: #e94560; text-shadow: 0 0 15px #e94560; }
     .cell.win { animation: pulse 0.5s infinite alternate; }
     @keyframes pulse { to { transform: scale(1.1); } }
-    button {
-      margin-top: 1.5rem; padding: 12px 30px; font-size: 1rem;
-      background: #e94560; color: #fff; border: none;
-      border-radius: 25px; cursor: pointer; transition: all 0.3s;
-    }
+    button { margin-top: 1rem; padding: 12px 30px; font-size: 1rem; background: #e94560; color: #fff; border: none; border-radius: 25px; cursor: pointer; transition: all 0.3s; }
     button:hover { background: #ff6b6b; transform: scale(1.05); }
-    .setup { text-align: center; width: 100%; }
-    #game { 
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      text-align: center;
-    }
-    .setup input {
-      padding: 12px 20px; font-size: 1rem; margin: 10px;
-      border: 2px solid #e94560; border-radius: 10px;
-      background: rgba(255,255,255,0.1); color: #fff;
-    }
-    .setup input::placeholder { color: rgba(255,255,255,0.5); }
+    button.secondary { background: #16213e; }
+    .setup, .mode-select { text-align: center; width: 100%; }
+    #game { display: flex; flex-direction: column; align-items: center; width: 100%; text-align: center; }
+    input { padding: 12px 20px; font-size: 1rem; margin: 10px; border: 2px solid #e94560; border-radius: 10px; background: rgba(255,255,255,0.1); color: #fff; width: 200px; }
+    input::placeholder { color: rgba(255,255,255,0.5); }
     .hidden { display: none !important; }
-    .players { 
-      margin-bottom: 1rem; 
-      font-size: 1.1rem;
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-    }
-    .players span { margin: 0; }
+    .players { margin-bottom: 1rem; font-size: 1.1rem; display: flex; justify-content: center; gap: 30px; }
     .x-player { color: #00fff5; }
     .o-player { color: #e94560; }
+    .mode-btn { display: block; width: 100%; max-width: 280px; margin: 10px auto; padding: 20px; font-size: 1.1rem; }
+    .game-link { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 15px 0; word-break: break-all; font-size: 0.9rem; }
+    .game-link input { width: 100%; margin: 5px 0; }
+    .copy-btn { padding: 8px 15px; font-size: 0.9rem; margin-top: 5px; }
+    .waiting { animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: 0.5; } }
+    .your-turn { background: rgba(0,255,245,0.2); border-color: #00fff5; }
   </style>
 </head>
 <body>
   <div class="env-badge" id="env-badge">DEV</div>
   <div class="container">
-  <div id="setup" class="setup">
-    <h1>⚡ Tic Tac Toe v2.2 ⚡</h1>
-    <p style="margin-bottom: 20px; color: #e94560;">Enter player names to begin</p>
-    <div>
-      <input type="text" id="p1name" placeholder="Player 1 (X)" maxlength="15">
+    <!-- Mode Selection -->
+    <div id="mode-select" class="mode-select">
+      <h1>⚡ Tic Tac Toe v3.0 ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Choose game mode</p>
+      <button class="mode-btn" onclick="selectMode('local')">🎮 Local Game<br><small>Two players, one device</small></button>
+      <button class="mode-btn" onclick="selectMode('create')">🌐 Create Online Game<br><small>Get a link to share</small></button>
+      <button class="mode-btn" onclick="selectMode('join')">🔗 Join Online Game<br><small>Enter game code</small></button>
     </div>
-    <div>
-      <input type="text" id="p2name" placeholder="Player 2 (O)" maxlength="15">
-    </div>
-    <button onclick="startGame()">Start Game</button>
-  </div>
 
-  <div id="game" class="hidden">
-    <h1 id="title">⚡ Tic Tac Toe v2.2 ⚡</h1>
-    <div class="players">
-      <span class="x-player">X: <span id="p1display"></span></span>
-      <span class="o-player">O: <span id="p2display"></span></span>
+    <!-- Local Setup -->
+    <div id="local-setup" class="setup hidden">
+      <h1>⚡ Local Game ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Enter player names</p>
+      <div><input type="text" id="p1name" placeholder="Player 1 (X)" maxlength="15"></div>
+      <div><input type="text" id="p2name" placeholder="Player 2 (O)" maxlength="15"></div>
+      <button onclick="startLocalGame()">Start Game</button>
+      <button class="secondary" onclick="backToMenu()">Back</button>
     </div>
-    <div class="status" id="status"></div>
-    <div class="board" id="board"></div>
-    <button onclick="reset()">New Game</button>
-    <button onclick="changePlayers()" style="margin-left: 10px; background: #16213e;">Change Players</button>
-  </div>
+
+    <!-- Online Create -->
+    <div id="online-create" class="setup hidden">
+      <h1>⚡ Create Game ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Enter your name</p>
+      <div><input type="text" id="create-name" placeholder="Your name (X)" maxlength="15"></div>
+      <button onclick="createOnlineGame()">Create Game</button>
+      <button class="secondary" onclick="backToMenu()">Back</button>
+    </div>
+
+    <!-- Online Waiting -->
+    <div id="online-waiting" class="setup hidden">
+      <h1>⚡ Waiting... ⚡</h1>
+      <p class="waiting" style="color: #e94560;">Share this link with your opponent</p>
+      <div class="game-link">
+        <input type="text" id="game-link" readonly>
+        <button class="copy-btn" onclick="copyLink()">📋 Copy Link</button>
+      </div>
+      <p style="font-size: 0.9rem; color: #888;">Game Code: <strong id="game-code"></strong></p>
+      <button class="secondary" onclick="backToMenu()">Cancel</button>
+    </div>
+
+    <!-- Online Join -->
+    <div id="online-join" class="setup hidden">
+      <h1>⚡ Join Game ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Enter game code and your name</p>
+      <div><input type="text" id="join-code" placeholder="Game Code" maxlength="8"></div>
+      <div><input type="text" id="join-name" placeholder="Your name (O)" maxlength="15"></div>
+      <button onclick="joinOnlineGame()">Join Game</button>
+      <button class="secondary" onclick="backToMenu()">Back</button>
+    </div>
+
+    <!-- Game Board -->
+    <div id="game" class="hidden">
+      <h1 id="title">⚡ Tic Tac Toe v3.0 ⚡</h1>
+      <div class="players">
+        <span class="x-player">X: <span id="p1display"></span></span>
+        <span class="o-player">O: <span id="p2display"></span></span>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="board" id="board"></div>
+      <button onclick="resetGame()">New Game</button>
+      <button class="secondary" onclick="backToMenu()">Exit</button>
+    </div>
   </div>
 
   <script>
-    // Environment injected by nginx sub_filter
     const env = '__ENV__';
-    
     document.body.classList.add(env);
     document.getElementById('env-badge').textContent = env.toUpperCase();
     
-    const API_URL = window.BACKEND_URL || '';
-    const patterns = {
-      '0,1,2': 'row1', '3,4,5': 'row2', '6,7,8': 'row3',
-      '0,3,6': 'col1', '1,4,7': 'col2', '2,5,8': 'col3',
-      '0,4,8': 'diag1', '2,4,6': 'diag2'
-    };
+    const API_URL = window.location.origin;
+    const WS_URL = API_URL.replace('http', 'ws');
+    const patterns = {'0,1,2':'row1','3,4,5':'row2','6,7,8':'row3','0,3,6':'col1','1,4,7':'col2','2,5,8':'col3','0,4,8':'diag1','2,4,6':'diag2'};
     const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    let board, turn, over, player1, player2;
+    
+    let gameMode = 'local', board = [], turn = 'X', over = false, player1 = '', player2 = '', myRole = '', gameId = '', ws = null;
 
-    function startGame() {
+    // Check URL for game code
+    const urlParams = new URLSearchParams(window.location.search);
+    const joinCode = urlParams.get('game');
+    if (joinCode) {
+      document.getElementById('join-code').value = joinCode;
+      selectMode('join');
+    }
+
+    function showScreen(id) {
+      ['mode-select','local-setup','online-create','online-waiting','online-join','game'].forEach(s => 
+        document.getElementById(s).classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function selectMode(mode) {
+      if (mode === 'local') showScreen('local-setup');
+      else if (mode === 'create') showScreen('online-create');
+      else if (mode === 'join') showScreen('online-join');
+    }
+
+    function backToMenu() {
+      if (ws) { ws.close(); ws = null; }
+      gameId = '';
+      window.history.replaceState({}, '', window.location.pathname);
+      showScreen('mode-select');
+    }
+
+    function startLocalGame() {
+      gameMode = 'local';
       player1 = document.getElementById('p1name').value.trim() || 'Player 1';
       player2 = document.getElementById('p2name').value.trim() || 'Player 2';
+      startGame();
+    }
+
+    async function createOnlineGame() {
+      const name = document.getElementById('create-name').value.trim() || 'Player 1';
+      try {
+        const res = await fetch(API_URL + '/api/game/create', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({player1: name})
+        });
+        const data = await res.json();
+        gameId = data.gameId;
+        player1 = name;
+        myRole = 'X';
+        const link = window.location.origin + window.location.pathname + '?game=' + gameId;
+        document.getElementById('game-link').value = link;
+        document.getElementById('game-code').textContent = gameId;
+        showScreen('online-waiting');
+        connectWebSocket();
+      } catch (e) { alert('Failed to create game'); }
+    }
+
+    async function joinOnlineGame() {
+      gameId = document.getElementById('join-code').value.trim();
+      const name = document.getElementById('join-name').value.trim() || 'Player 2';
+      if (!gameId) { alert('Enter game code'); return; }
+      try {
+        const res = await fetch(API_URL + '/api/game/join', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({gameId, player2: name})
+        });
+        if (!res.ok) { alert('Game not found or already started'); return; }
+        const data = await res.json();
+        player1 = data.player1;
+        player2 = name;
+        myRole = 'O';
+        gameMode = 'online';
+        connectWebSocket();
+        startGame();
+      } catch (e) { alert('Failed to join game'); }
+    }
+
+    function connectWebSocket() {
+      ws = new WebSocket(WS_URL + '/api/game/ws?id=' + gameId);
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'game_state') updateFromServer(msg.payload);
+        else if (msg.type === 'game_start') {
+          player2 = msg.payload.player2;
+          gameMode = 'online';
+          startGame();
+        }
+      };
+      ws.onclose = () => { if (gameMode === 'online' && !over) console.log('Connection lost'); };
+    }
+
+    function updateFromServer(state) {
+      board = state.board;
+      turn = state.turn;
+      player1 = state.player1;
+      player2 = state.player2;
+      renderBoard();
+      if (state.status === 'finished') {
+        over = true;
+        if (state.winner) {
+          document.getElementById('status').textContent = '🎉 ' + state.winner + ' wins!';
+          highlightWin(state.pattern);
+        } else {
+          document.getElementById('status').textContent = "It's a draw!";
+        }
+      } else {
+        updateStatus();
+      }
+    }
+
+    function startGame() {
       document.getElementById('p1display').textContent = player1;
       document.getElementById('p2display').textContent = player2;
-      document.getElementById('title').textContent = '⚡ Tic Tac Toe v2.2 ⚡';
-      document.getElementById('setup').classList.add('hidden');
-      document.getElementById('game').classList.remove('hidden');
-      init();
+      document.getElementById('title').textContent = gameMode === 'online' ? '⚡ Online Game ⚡' : '⚡ Local Game ⚡';
+      showScreen('game');
+      initBoard();
     }
 
-    function changePlayers() {
-      document.getElementById('setup').classList.remove('hidden');
-      document.getElementById('game').classList.add('hidden');
-    }
-
-    function init() {
-      board = Array(9).fill('');
+    function initBoard() {
+      if (gameMode === 'local') board = Array(9).fill('');
       turn = 'X';
       over = false;
-      document.getElementById('status').textContent = player1 + "'s turn (X)";
+      renderBoard();
+      updateStatus();
+    }
+
+    function renderBoard() {
       const el = document.getElementById('board');
       el.innerHTML = '';
       for (let i = 0; i < 9; i++) {
         const cell = document.createElement('div');
         cell.className = 'cell';
-        cell.onclick = () => play(i, cell);
+        if (board[i]) {
+          cell.textContent = board[i];
+          cell.classList.add(board[i].toLowerCase());
+        }
+        if (gameMode === 'online' && !isMyTurn()) cell.classList.add('disabled');
+        cell.onclick = () => play(i);
         el.appendChild(cell);
       }
     }
 
-    function play(i, cell) {
+    function isMyTurn() {
+      return (turn === 'X' && myRole === 'X') || (turn === 'O' && myRole === 'O');
+    }
+
+    function updateStatus() {
+      const currentPlayer = turn === 'X' ? player1 : player2;
+      let status = currentPlayer + "'s turn (" + turn + ")";
+      if (gameMode === 'online') {
+        status = isMyTurn() ? "Your turn! (" + turn + ")" : "Waiting for " + currentPlayer + "...";
+      }
+      document.getElementById('status').textContent = status;
+    }
+
+    function play(i) {
       if (board[i] || over) return;
-      board[i] = turn;
-      cell.textContent = turn;
-      cell.classList.add(turn.toLowerCase());
+      if (gameMode === 'online') {
+        if (!isMyTurn()) return;
+        ws.send(JSON.stringify({type: 'move', payload: {index: i, player: turn === 'X' ? player1 : player2}}));
+      } else {
+        board[i] = turn;
+        renderBoard();
+        checkWin();
+      }
+    }
+
+    function checkWin() {
       const win = wins.find(w => w.every(j => board[j] === turn));
       if (win) {
         over = true;
         const winner = turn === 'X' ? player1 : player2;
         const pattern = patterns[win.join(',')];
         document.getElementById('status').textContent = '🎉 ' + winner + ' wins!';
-        win.forEach(j => document.getElementById('board').children[j].classList.add('win'));
+        highlightWin(pattern);
         recordGame(winner, pattern, false);
       } else if (board.every(c => c)) {
         over = true;
@@ -184,24 +311,36 @@
         recordGame('', '', true);
       } else {
         turn = turn === 'X' ? 'O' : 'X';
-        const currentPlayer = turn === 'X' ? player1 : player2;
-        document.getElementById('status').textContent = currentPlayer + "'s turn (" + turn + ")";
+        updateStatus();
       }
+    }
+
+    function highlightWin(pattern) {
+      const map = {row1:[0,1,2],row2:[3,4,5],row3:[6,7,8],col1:[0,3,6],col2:[1,4,7],col3:[2,5,8],diag1:[0,4,8],diag2:[2,4,6]};
+      if (map[pattern]) map[pattern].forEach(j => document.getElementById('board').children[j].classList.add('win'));
     }
 
     async function recordGame(winner, pattern, isTie) {
       try {
         await fetch(API_URL + '/api/game', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ player1, player2, winner, pattern, isTie })
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({player1, player2, winner, pattern, isTie, mode: gameMode})
         });
-      } catch (e) {
-        console.log('Failed to record game:', e);
-      }
+      } catch (e) {}
     }
 
-    function reset() { init(); }
+    function resetGame() {
+      if (gameMode === 'online') backToMenu();
+      else initBoard();
+    }
+
+    function copyLink() {
+      const input = document.getElementById('game-link');
+      input.select();
+      document.execCommand('copy');
+      alert('Link copied!');
+    }
   </script>
 </body>
 </html>
