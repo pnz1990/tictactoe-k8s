@@ -551,14 +551,37 @@ The backend exposes the following Prometheus metrics:
 
 | Metric | Labels | Description |
 |--------|--------|-------------|
-| `tictactoe_games_total` | result | Total games (win/tie) |
-| `tictactoe_wins_total` | player, pattern | Wins by player and pattern |
-| `tictactoe_player_games_total` | player | Games per player |
-| `tictactoe_ties_total` | - | Total tied games |
+| `tictactoe_games_total` | result, mode | Total games (win/tie) by mode |
+| `tictactoe_wins_total` | player, pattern, mode | Wins by player, pattern, and mode |
+| `tictactoe_player_games_total` | player, mode | Games per player by mode |
+| `tictactoe_ties_total` | mode | Total tied games by mode |
 | `tictactoe_current_win_streak` | player | Current win streak |
 | `tictactoe_dynamodb_operations_total` | operation, status | DynamoDB operations (PutItem success/error) |
+| `tictactoe_online_games_active` | - | Currently active online games |
+| `tictactoe_online_games_created_total` | - | Total online games created |
+| `tictactoe_websocket_connections_active` | - | Active WebSocket connections |
+| `tictactoe_websocket_messages_total` | type, direction | WebSocket messages (in/out) |
+
+**Game Modes**: `local` (same device), `online` (multiplayer via WebSocket)
 
 **Winning Patterns**: row1, row2, row3, col1, col2, col3, diag1, diag2
+
+### Online Multiplayer (v3.0)
+
+The application supports real-time online multiplayer via WebSocket:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/game/create` | POST | Create new online game, returns game ID |
+| `/api/game/join` | POST | Join existing game by ID |
+| `/api/game/get` | GET | Get game state by ID |
+| `/api/game/ws` | WS | WebSocket for real-time game updates |
+
+**Features:**
+- Create game and share link/code with opponent
+- Real-time board sync via WebSocket
+- Turn-based play enforcement
+- Game state persisted to DynamoDB on completion
 
 ### GitOps
 - [x] ArgoCD auto-sync with self-healing
@@ -580,7 +603,7 @@ The backend exposes the following Prometheus metrics:
 
 **PostSync Smoke Test:**
 - Runs automatically after ArgoCD sync
-- Tests frontend health, backend health, and API endpoints
+- Tests frontend health, backend health, API endpoints, and online game creation
 - Failed tests mark sync as "Degraded"
 - Job auto-deletes on success
 
