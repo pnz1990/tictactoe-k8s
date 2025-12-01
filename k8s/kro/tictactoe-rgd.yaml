@@ -643,7 +643,7 @@ spec:
                   echo " ✓ Frontend OK"
                   
                   echo "Test 2: Backend health check"
-                  curl -sf http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/healthz || exit 1
+                  curl -sf http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/nonexistent || exit 1
                   echo " ✓ Backend OK"
                   
                   echo "Test 3: Game API responds"
