@@ -4,7 +4,7 @@ metadata:
   name: tictactoe-dev
 spec:
   environment: dev
-  imageTag: "92e381d"
+  imageTag: "e86c067"
   replicas: 1
   backendReplicas: 1
   cpuRequest: "10m"
@@ -12,4 +12,4 @@ spec:
   memoryRequest: "16Mi"
   memoryLimit: "64Mi"
   albId: "app/k8s-tictacto-tictacto-74ef9eee48/2e6939d43dbb0711"
-  albUrl: "http://k8s-tictacto-tictacto-74ef9eee48-1185232516.ap-northeast-2.elb.amazonaws.com"
+  albUrl: "http://k8s-tictacto-tictacto-74ef9eee48-1677920840.ap-northeast-2.elb.amazonaws.com"
