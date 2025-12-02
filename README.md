@@ -84,7 +84,20 @@ This project uses the following AWS managed services:
 - **Tic Tac Toe Game**: Browser-based two-player game with neon cyberpunk styling
 - **Player Names**: Enter player names before starting the game
 - **Game Recording**: All game results sent to backend API
+- **AI Opponent**: Single-player mode with three difficulty levels
 - **Lightweight**: ~3KB total size
+
+### AI Opponent (Single Player)
+
+Play against the computer with three difficulty levels:
+
+| Difficulty | Algorithm | Description |
+|------------|-----------|-------------|
+| **Easy** | Random | Picks any valid empty cell randomly |
+| **Medium** | 50/50 | 50% chance optimal move (Minimax), 50% random |
+| **Hard** | Minimax | Perfect play - AI never loses, only wins or ties |
+
+The Hard difficulty uses the Minimax algorithm with depth scoring to prefer faster wins and slower losses.
 
 ### CI/CD Pipeline (GitHub Actions)
 

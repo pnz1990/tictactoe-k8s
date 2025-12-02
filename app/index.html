@@ -150,11 +150,34 @@
     <!-- Local Setup -->
     <div id="local-setup" class="setup hidden">
       <h1>⚡ Local Game ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Choose opponent</p>
+      <button class="mode-btn" onclick="showLocalVsPlayer()">👥 Two Players<br><small>Play with a friend</small></button>
+      <button class="mode-btn" onclick="showLocalVsAI()">🤖 vs AI<br><small>Challenge the computer</small></button>
+      <button class="secondary" onclick="backToMenu()">Back</button>
+    </div>
+
+    <!-- Local vs Player -->
+    <div id="local-vs-player" class="setup hidden">
+      <h1>⚡ Two Players ⚡</h1>
       <p style="margin-bottom: 20px; color: #e94560;">Enter player names</p>
       <div><input type="text" id="p1name" placeholder="Player 1 (X)" maxlength="15"></div>
       <div><input type="text" id="p2name" placeholder="Player 2 (O)" maxlength="15"></div>
       <button onclick="startLocalGame()">Start Game</button>
-      <button class="secondary" onclick="backToMenu()">Back</button>
+      <button class="secondary" onclick="selectMode('local')">Back</button>
+    </div>
+
+    <!-- Local vs AI -->
+    <div id="local-vs-ai" class="setup hidden">
+      <h1>⚡ vs AI ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Enter your name & difficulty</p>
+      <div><input type="text" id="ai-player-name" placeholder="Your name (X)" maxlength="15"></div>
+      <div class="difficulty-select" style="margin: 15px 0;">
+        <button class="tab active" onclick="setDifficulty('easy', this)">😊 Easy</button>
+        <button class="tab" onclick="setDifficulty('medium', this)">🤔 Medium</button>
+        <button class="tab" onclick="setDifficulty('hard', this)">😈 Hard</button>
+      </div>
+      <button onclick="startAIGame()">Start Game</button>
+      <button class="secondary" onclick="selectMode('local')">Back</button>
     </div>
 
     <!-- Online Create -->
@@ -220,7 +243,7 @@
     const joinCode = urlParams.get('game');
 
     function showScreen(id) {
-      ['mode-select','local-setup','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
+      ['mode-select','local-setup','local-vs-player','local-vs-ai','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
         document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -231,18 +254,107 @@
       else if (mode === 'join') showScreen('online-join');
     }
 
+    function showLocalVsPlayer() { showScreen('local-vs-player'); }
+    function showLocalVsAI() { showScreen('local-vs-ai'); }
+
+    let aiDifficulty = 'easy';
+    let isAIGame = false;
+
+    function setDifficulty(level, btn) {
+      aiDifficulty = level;
+      document.querySelectorAll('#local-vs-ai .tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function startAIGame() {
+      gameMode = 'local';
+      isAIGame = true;
+      player1 = document.getElementById('ai-player-name').value.trim() || 'Player';
+      player2 = 'AI (' + aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1) + ')';
+      startGame();
+    }
+
     function backToMenu() {
       if (ws) { ws.close(); ws = null; }
       gameId = '';
+      isAIGame = false;
       window.history.replaceState({}, '', window.location.pathname);
       showScreen('mode-select');
     }
 
     function startLocalGame() {
       gameMode = 'local';
+      isAIGame = false;
       player1 = document.getElementById('p1name').value.trim() || 'Player 1';
       player2 = document.getElementById('p2name').value.trim() || 'Player 2';
       startGame();
+    }
+
+    // AI Logic
+    function getAIMove() {
+      const empty = board.map((c, i) => c === '' ? i : -1).filter(i => i >= 0);
+      if (empty.length === 0) return -1;
+
+      if (aiDifficulty === 'easy') {
+        return empty[Math.floor(Math.random() * empty.length)];
+      } else if (aiDifficulty === 'medium') {
+        return Math.random() < 0.5 ? getBestMove() : empty[Math.floor(Math.random() * empty.length)];
+      } else {
+        return getBestMove();
+      }
+    }
+
+    function getBestMove() {
+      let bestScore = -Infinity;
+      let bestMove = -1;
+      for (let i = 0; i < 9; i++) {
+        if (board[i] === '') {
+          board[i] = 'O';
+          const score = minimax(board, 0, false);
+          board[i] = '';
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = i;
+          }
+        }
+      }
+      return bestMove;
+    }
+
+    function minimax(b, depth, isMaximizing) {
+      const winner = checkWinner(b);
+      if (winner === 'O') return 10 - depth;
+      if (winner === 'X') return depth - 10;
+      if (b.every(c => c !== '')) return 0;
+
+      if (isMaximizing) {
+        let best = -Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (b[i] === '') {
+            b[i] = 'O';
+            best = Math.max(best, minimax(b, depth + 1, false));
+            b[i] = '';
+          }
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (b[i] === '') {
+            b[i] = 'X';
+            best = Math.min(best, minimax(b, depth + 1, true));
+            b[i] = '';
+          }
+        }
+        return best;
+      }
+    }
+
+    function checkWinner(b) {
+      for (const [a, c, d] of wins) {
+        if (b[a] && b[a] === b[c] && b[c] === b[d]) return b[a];
+      }
+      return null;
     }
 
     async function createOnlineGame() {
@@ -370,6 +482,8 @@
         if (!isMyTurn()) return;
         ws.send(JSON.stringify({type: 'move', payload: {index: i, player: turn === 'X' ? player1 : player2}}));
       } else {
+        // In AI game, only allow player (X) to move on their turn
+        if (isAIGame && turn === 'O') return;
         board[i] = turn;
         renderBoard();
         checkWin();
@@ -392,6 +506,20 @@
       } else {
         turn = turn === 'X' ? 'O' : 'X';
         updateStatus();
+        // AI's turn
+        if (isAIGame && turn === 'O' && !over) {
+          setTimeout(makeAIMove, 500);
+        }
+      }
+    }
+
+    function makeAIMove() {
+      if (over) return;
+      const move = getAIMove();
+      if (move >= 0) {
+        board[move] = 'O';
+        renderBoard();
+        checkWin();
       }
     }
 
