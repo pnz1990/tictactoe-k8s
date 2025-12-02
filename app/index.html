@@ -77,7 +77,7 @@
   <div class="container">
     <!-- Mode Selection -->
     <div id="mode-select" class="mode-select">
-      <h1>⚡ Tic Tac Toe v3.0 ⚡</h1>
+      <h1>⚡ Tic Tac Toe v3.1 ⚡</h1>
       <p style="margin-bottom: 20px; color: #e94560;">Choose game mode</p>
       <button class="mode-btn" onclick="selectMode('local')">🎮 Local Game<br><small>Two players, one device</small></button>
       <button class="mode-btn" onclick="selectMode('create')">🌐 Create Online Game<br><small>Get a link to share</small></button>
@@ -95,7 +95,7 @@
       </div>
       <div id="tab-rankings">
         <div class="stats-grid" id="quick-stats"></div>
-        <table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>W/L/T</th><th>Win%</th></tr></thead><tbody id="rankings-body"></tbody></table>
+        <table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>W/L/T</th><th>Win%</th><th>🔥</th><th>Fav</th></tr></thead><tbody id="rankings-body"></tbody></table>
       </div>
       <div id="tab-stats" class="hidden">
         <div class="stats-grid" id="full-stats"></div>
@@ -151,7 +151,7 @@
 
     <!-- Game Board -->
     <div id="game" class="hidden">
-      <h1 id="title">⚡ Tic Tac Toe v3.0 ⚡</h1>
+      <h1 id="title">⚡ Tic Tac Toe v3.1 ⚡</h1>
       <div class="players">
         <span class="x-player">X: <span id="p1display"></span></span>
         <span class="o-player">O: <span id="p2display"></span></span>
@@ -407,22 +407,25 @@
         const res = await fetch(API_URL + '/api/leaderboard');
         const data = await res.json();
         const tbody = document.getElementById('rankings-body');
-        tbody.innerHTML = data.players.map((p, i) => `
+        tbody.innerHTML = data.players.length ? data.players.map((p, i) => `
           <tr>
             <td class="rank">${i + 1}</td>
             <td class="player">${p.player}</td>
             <td class="wins">${p.wins}</td>
             <td>${p.wins}/${p.losses}/${p.ties}</td>
             <td class="winrate">${p.winRate.toFixed(1)}%</td>
+            <td>${p.winStreak || 0}</td>
+            <td style="font-size:0.8rem">${p.bestPattern || '-'}</td>
           </tr>
-        `).join('');
+        `).join('') : '<tr><td colspan="7" style="text-align:center;color:#888">No online games yet</td></tr>';
         
         const topWins = data.players[0]?.wins || 0;
         const totalPlayers = data.players.length;
+        const topStreak = Math.max(...data.players.map(p => p.winStreak || 0), 0);
         document.getElementById('quick-stats').innerHTML = `
           <div class="stat-card"><div class="value">${totalPlayers}</div><div class="label">Players</div></div>
           <div class="stat-card"><div class="value">${topWins}</div><div class="label">Top Wins</div></div>
-          <div class="stat-card"><div class="value">${data.players[0]?.player || '-'}</div><div class="label">Leader</div></div>
+          <div class="stat-card"><div class="value">${topStreak}</div><div class="label">Best Streak</div></div>
         `;
       } catch (e) { console.error('Failed to load leaderboard', e); }
     }
@@ -432,14 +435,21 @@
         const res = await fetch(API_URL + '/api/stats');
         const data = await res.json();
         document.getElementById('full-stats').innerHTML = `
-          <div class="stat-card"><div class="value">${data.totalGames}</div><div class="label">Total Games</div></div>
-          <div class="stat-card"><div class="value">${data.totalWins}</div><div class="label">Decisive Games</div></div>
+          <div class="stat-card"><div class="value">${data.totalGames}</div><div class="label">Online Games</div></div>
+          <div class="stat-card"><div class="value">${data.totalWins}</div><div class="label">Decisive</div></div>
           <div class="stat-card"><div class="value">${data.totalTies}</div><div class="label">Ties</div></div>
+          <div class="stat-card"><div class="value">${data.xWinRate?.toFixed(1) || 0}%</div><div class="label">X Win Rate</div></div>
+          <div class="stat-card"><div class="value">${data.oWinRate?.toFixed(1) || 0}%</div><div class="label">O Win Rate</div></div>
+          <div class="stat-card"><div class="value">${data.tieRate?.toFixed(1) || 0}%</div><div class="label">Tie Rate</div></div>
         `;
         const patterns = Object.entries(data.topPatterns || {}).sort((a, b) => b[1] - a[1]);
-        document.getElementById('patterns-chart').innerHTML = patterns.map(([p, c]) => `
-          <div class="recent-game"><span>${p}</span><span class="wins">${c} wins</span></div>
-        `).join('');
+        document.getElementById('patterns-chart').innerHTML = `
+          <h3 style="margin: 15px 0 10px; color: #e94560;">🎲 Winning Patterns</h3>
+          ${patterns.map(([p, c]) => `<div class="recent-game"><span>${p}</span><span class="wins">${c} wins</span></div>`).join('')}
+          <h3 style="margin: 15px 0 10px; color: #e94560;">🔥 Records</h3>
+          <div class="recent-game"><span>Longest Win Streak</span><span class="wins">${data.longestStreak || 0} by ${data.streakHolder || '-'}</span></div>
+          <div class="recent-game"><span>Peak Hour (UTC)</span><span class="wins">${data.mostActiveHour || 0}:00</span></div>
+        `;
       } catch (e) { console.error('Failed to load stats', e); }
     }
 
@@ -447,12 +457,12 @@
       try {
         const res = await fetch(API_URL + '/api/recent');
         const games = await res.json();
-        document.getElementById('recent-games-list').innerHTML = games.map(g => `
+        document.getElementById('recent-games-list').innerHTML = games.length ? games.map(g => `
           <div class="recent-game">
             <div class="players">${g.player1} vs ${g.player2}</div>
-            <div class="result">${g.isTie ? 'Tie' : g.winner + ' won'} • ${g.mode}</div>
+            <div class="result">${g.isTie ? '🤝 Tie' : '🏆 ' + g.winner + ' won'}</div>
           </div>
-        `).join('');
+        `).join('') : '<p style="color: #888; text-align: center;">No online games yet. Be the first!</p>';
       } catch (e) { console.error('Failed to load recent games', e); }
     }
   </script>

@@ -445,12 +445,14 @@ func (g *OnlineGame) handleMessage(msg WSMessage) {
 
 // Leaderboard structures
 type PlayerStats struct {
-	Player     string  `json:"player"`
-	Wins       int     `json:"wins"`
-	Losses     int     `json:"losses"`
-	Ties       int     `json:"ties"`
-	TotalGames int     `json:"totalGames"`
-	WinRate    float64 `json:"winRate"`
+	Player      string  `json:"player"`
+	Wins        int     `json:"wins"`
+	Losses      int     `json:"losses"`
+	Ties        int     `json:"ties"`
+	TotalGames  int     `json:"totalGames"`
+	WinRate     float64 `json:"winRate"`
+	WinStreak   int     `json:"winStreak"`
+	BestPattern string  `json:"bestPattern,omitempty"`
 }
 
 type LeaderboardResponse struct {
@@ -470,11 +472,18 @@ type RecentGame struct {
 }
 
 type StatsResponse struct {
-	TotalGames  int            `json:"totalGames"`
-	TotalWins   int            `json:"totalWins"`
-	TotalTies   int            `json:"totalTies"`
-	TopPatterns map[string]int `json:"topPatterns"`
-	UpdatedAt   string         `json:"updatedAt"`
+	TotalGames      int            `json:"totalGames"`
+	TotalWins       int            `json:"totalWins"`
+	TotalTies       int            `json:"totalTies"`
+	TopPatterns     map[string]int `json:"topPatterns"`
+	UpdatedAt       string         `json:"updatedAt"`
+	AvgMovesPerGame float64        `json:"avgMovesPerGame"`
+	XWinRate        float64        `json:"xWinRate"`
+	OWinRate        float64        `json:"oWinRate"`
+	TieRate         float64        `json:"tieRate"`
+	MostActiveHour  int            `json:"mostActiveHour"`
+	LongestStreak   int            `json:"longestStreak"`
+	StreakHolder    string         `json:"streakHolder"`
 }
 
 func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -487,8 +496,9 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Scan all games and aggregate stats
+	// Scan all online games and aggregate stats
 	playerStats := make(map[string]*PlayerStats)
+	playerPatterns := make(map[string]map[string]int) // player -> pattern -> count
 	var lastKey map[string]types.AttributeValue
 
 	for {
@@ -506,9 +516,16 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 		dynamoDBOps.WithLabelValues("Scan", "success").Inc()
 
 		for _, item := range result.Items {
+			mode := getStringAttr(item, "mode")
+			// Only count online games for leaderboard
+			if mode != "online" {
+				continue
+			}
+
 			p1 := getStringAttr(item, "player1")
 			p2 := getStringAttr(item, "player2")
 			winner := getStringAttr(item, "winner")
+			pattern := getStringAttr(item, "pattern")
 			isTie := getBoolAttr(item, "isTie")
 
 			// Skip synthetic test data
@@ -518,12 +535,21 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 
 			ensurePlayer(playerStats, p1)
 			ensurePlayer(playerStats, p2)
+			if playerPatterns[p1] == nil {
+				playerPatterns[p1] = make(map[string]int)
+			}
+			if playerPatterns[p2] == nil {
+				playerPatterns[p2] = make(map[string]int)
+			}
 
 			if isTie {
 				playerStats[p1].Ties++
 				playerStats[p2].Ties++
 			} else if winner != "" {
 				playerStats[winner].Wins++
+				if pattern != "" {
+					playerPatterns[winner][pattern]++
+				}
 				loser := p1
 				if winner == p1 {
 					loser = p2
@@ -540,11 +566,25 @@ func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Convert to slice and calculate win rates
+	// Convert to slice, calculate win rates and best patterns
 	players := make([]PlayerStats, 0, len(playerStats))
-	for _, ps := range playerStats {
+	for name, ps := range playerStats {
 		if ps.TotalGames > 0 {
 			ps.WinRate = float64(ps.Wins) / float64(ps.TotalGames) * 100
+		}
+		// Find best pattern
+		if patterns, ok := playerPatterns[name]; ok {
+			maxCount := 0
+			for p, c := range patterns {
+				if c > maxCount {
+					maxCount = c
+					ps.BestPattern = p
+				}
+			}
+		}
+		// Get current streak from memory
+		if streak, ok := winStreaks[name]; ok {
+			ps.WinStreak = streak
 		}
 		players = append(players, *ps)
 	}
@@ -581,8 +621,11 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var totalGames, totalWins, totalTies int
+	var totalGames, totalWins, totalTies, xWins, oWins int
 	patterns := make(map[string]int)
+	hourCounts := make(map[int]int)
+	playerWinStreaks := make(map[string]int)
+	longestStreak, streakHolder := 0, ""
 	var lastKey map[string]types.AttributeValue
 
 	for {
@@ -599,18 +642,44 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 		dynamoDBOps.WithLabelValues("Scan", "success").Inc()
 
 		for _, item := range result.Items {
+			mode := getStringAttr(item, "mode")
+			if mode != "online" {
+				continue
+			}
 			p1 := getStringAttr(item, "player1")
 			if len(p1) >= 9 && p1[:9] == "Synthetic" {
 				continue
 			}
 			totalGames++
+
+			// Track hour of play
+			ts := getStringAttr(item, "timestamp")
+			if len(ts) >= 13 {
+				hour := 0
+				fmt.Sscanf(ts[11:13], "%d", &hour)
+				hourCounts[hour]++
+			}
+
 			if getBoolAttr(item, "isTie") {
 				totalTies++
 			} else {
 				totalWins++
+				winner := getStringAttr(item, "winner")
 				pattern := getStringAttr(item, "pattern")
 				if pattern != "" {
 					patterns[pattern]++
+				}
+				// X always goes first, so winner == p1 means X won
+				if winner == p1 {
+					xWins++
+				} else {
+					oWins++
+				}
+				// Track streaks
+				playerWinStreaks[winner]++
+				if playerWinStreaks[winner] > longestStreak {
+					longestStreak = playerWinStreaks[winner]
+					streakHolder = winner
 				}
 			}
 		}
@@ -621,12 +690,35 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Find most active hour
+	mostActiveHour, maxHourCount := 0, 0
+	for h, c := range hourCounts {
+		if c > maxHourCount {
+			maxHourCount = c
+			mostActiveHour = h
+		}
+	}
+
+	// Calculate rates
+	var xRate, oRate, tieRate float64
+	if totalGames > 0 {
+		xRate = float64(xWins) / float64(totalGames) * 100
+		oRate = float64(oWins) / float64(totalGames) * 100
+		tieRate = float64(totalTies) / float64(totalGames) * 100
+	}
+
 	resp := StatsResponse{
-		TotalGames:  totalGames,
-		TotalWins:   totalWins,
-		TotalTies:   totalTies,
-		TopPatterns: patterns,
-		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
+		TotalGames:     totalGames,
+		TotalWins:      totalWins,
+		TotalTies:      totalTies,
+		TopPatterns:    patterns,
+		XWinRate:       xRate,
+		OWinRate:       oRate,
+		TieRate:        tieRate,
+		MostActiveHour: mostActiveHour,
+		LongestStreak:  longestStreak,
+		StreakHolder:   streakHolder,
+		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -644,7 +736,7 @@ func recentGamesHandler(w http.ResponseWriter, r *http.Request) {
 
 	input := &dynamodb.ScanInput{
 		TableName: aws.String(tableName),
-		Limit:     aws.Int32(50),
+		Limit:     aws.Int32(100),
 	}
 	result, err := dynamoClient.Scan(context.Background(), input)
 	if err != nil {
@@ -656,6 +748,10 @@ func recentGamesHandler(w http.ResponseWriter, r *http.Request) {
 
 	games := make([]RecentGame, 0)
 	for _, item := range result.Items {
+		mode := getStringAttr(item, "mode")
+		if mode != "online" {
+			continue
+		}
 		p1 := getStringAttr(item, "player1")
 		if len(p1) >= 9 && p1[:9] == "Synthetic" {
 			continue
@@ -667,7 +763,7 @@ func recentGamesHandler(w http.ResponseWriter, r *http.Request) {
 			Winner:    getStringAttr(item, "winner"),
 			Pattern:   getStringAttr(item, "pattern"),
 			IsTie:     getBoolAttr(item, "isTie"),
-			Mode:      getStringAttr(item, "mode"),
+			Mode:      mode,
 			Timestamp: getStringAttr(item, "timestamp"),
 		})
 	}
