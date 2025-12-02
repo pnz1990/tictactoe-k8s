@@ -83,6 +83,15 @@
     .profile-header h2 { color: #00fff5; margin: 10px 0; }
     .clickable { cursor: pointer; text-decoration: underline; }
     .clickable:hover { color: #00fff5; }
+    .coin-flip { text-align: center; }
+    .coin { width: 120px; height: 120px; margin: 30px auto; position: relative; transform-style: preserve-3d; }
+    .coin.flipping { animation: flip 2s ease-out forwards; }
+    .coin-face { position: absolute; width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: bold; backface-visibility: hidden; border: 4px solid; }
+    .coin-x { background: linear-gradient(135deg, #0a2a3a, #0f3460); color: #00fff5; border-color: #00fff5; box-shadow: 0 0 30px rgba(0,255,245,0.5); }
+    .coin-o { background: linear-gradient(135deg, #2a0a1a, #3e1620); color: #e94560; border-color: #e94560; box-shadow: 0 0 30px rgba(233,69,96,0.5); transform: rotateY(180deg); }
+    @keyframes flip { 0% { transform: rotateY(0); } 100% { transform: rotateY(var(--flip-end)); } }
+    .coin-result { font-size: 1.5rem; margin: 20px 0; opacity: 0; transition: opacity 0.3s; }
+    .coin-result.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -154,6 +163,17 @@
       <button class="mode-btn" onclick="showLocalVsPlayer()">👥 Two Players<br><small>Play with a friend</small></button>
       <button class="mode-btn" onclick="showLocalVsAI()">🤖 vs AI<br><small>Challenge the computer</small></button>
       <button class="secondary" onclick="backToMenu()">Back</button>
+    </div>
+
+    <!-- Coin Flip -->
+    <div id="coin-flip" class="coin-flip hidden">
+      <h1>⚡ Coin Flip ⚡</h1>
+      <p style="color: #e94560;">Who goes first?</p>
+      <div class="coin" id="coin">
+        <div class="coin-face coin-x">X</div>
+        <div class="coin-face coin-o">O</div>
+      </div>
+      <div class="coin-result" id="coin-result"></div>
     </div>
 
     <!-- Local vs Player -->
@@ -243,7 +263,7 @@
     const joinCode = urlParams.get('game');
 
     function showScreen(id) {
-      ['mode-select','local-setup','local-vs-player','local-vs-ai','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
+      ['mode-select','local-setup','local-vs-player','local-vs-ai','coin-flip','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
         document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -271,7 +291,7 @@
       isAIGame = true;
       player1 = document.getElementById('ai-player-name').value.trim() || 'Player';
       player2 = 'AI (' + aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1) + ')';
-      startGame();
+      doCoinFlip();
     }
 
     function backToMenu() {
@@ -287,7 +307,35 @@
       isAIGame = false;
       player1 = document.getElementById('p1name').value.trim() || 'Player 1';
       player2 = document.getElementById('p2name').value.trim() || 'Player 2';
-      startGame();
+      doCoinFlip();
+    }
+
+    let firstPlayer = 'X';
+
+    function doCoinFlip() {
+      showScreen('coin-flip');
+      const coin = document.getElementById('coin');
+      const result = document.getElementById('coin-result');
+      coin.classList.remove('flipping');
+      result.classList.remove('show');
+      result.textContent = '';
+      
+      // Random: X or O goes first
+      const xFirst = Math.random() < 0.5;
+      firstPlayer = xFirst ? 'X' : 'O';
+      
+      // X = 0deg (or 720), O = 180deg (or 900)
+      const rotations = xFirst ? 720 : 900;
+      coin.style.setProperty('--flip-end', rotations + 'deg');
+      
+      setTimeout(() => coin.classList.add('flipping'), 100);
+      
+      setTimeout(() => {
+        const winner = xFirst ? player1 : player2;
+        result.innerHTML = '<span style="color:' + (xFirst ? '#00fff5' : '#e94560') + '">' + winner + '</span> goes first!';
+        result.classList.add('show');
+        setTimeout(() => startGame(), 1500);
+      }, 2200);
     }
 
     // AI Logic
@@ -393,6 +441,7 @@
         player2 = name;
         myRole = 'O';
         gameMode = 'online';
+        firstPlayer = 'X';
         connectWebSocket();
         startGame();
       } catch (e) { alert('Failed to join game'); }
@@ -406,6 +455,7 @@
         else if (msg.type === 'game_start') {
           player2 = msg.payload.player2;
           gameMode = 'online';
+          firstPlayer = 'X';
           startGame();
         }
       };
@@ -441,10 +491,11 @@
 
     function initBoard() {
       if (gameMode === 'local') board = Array(9).fill('');
-      turn = 'X';
+      turn = firstPlayer;
       over = false;
       renderBoard();
       updateStatus();
+      if (isAIGame && turn === 'O') setTimeout(makeAIMove, 500);
     }
 
     function renderBoard() {
