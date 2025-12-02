@@ -583,6 +583,22 @@ The application supports real-time online multiplayer via WebSocket:
 - Turn-based play enforcement
 - Game state persisted to DynamoDB on completion
 
+### Leaderboard API (v3.1)
+
+REST API for player statistics and game history, backed by DynamoDB:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/leaderboard` | GET | Top 20 players by wins with W/L/T stats |
+| `/api/stats` | GET | Global stats: total games, wins, ties, patterns |
+| `/api/recent` | GET | Last 20 games played |
+| `/api/player?player=NAME` | GET | Individual player statistics |
+
+**DynamoDB Schema:**
+- Table: `tictactoe-games-{env}`
+- Primary Key: `gameId` (HASH), `timestamp` (RANGE)
+- GSI: `winner-timestamp-index` for leaderboard queries
+
 ### GitOps
 - [x] ArgoCD auto-sync with self-healing
 - [x] Pruning enabled

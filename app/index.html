@@ -50,6 +50,26 @@
     .waiting { animation: blink 1s infinite; }
     @keyframes blink { 50% { opacity: 0.5; } }
     .your-turn { background: rgba(0,255,245,0.2); border-color: #00fff5; }
+    .leaderboard { width: 100%; max-width: 500px; }
+    .leaderboard table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .leaderboard th, .leaderboard td { padding: 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .leaderboard th { color: #e94560; font-size: 0.9rem; }
+    .leaderboard tr:hover { background: rgba(255,255,255,0.05); }
+    .leaderboard .rank { color: #00fff5; font-weight: bold; }
+    .leaderboard .player { color: #fff; }
+    .leaderboard .wins { color: #4ade80; }
+    .leaderboard .winrate { color: #fbbf24; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+    .stat-card { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; }
+    .stat-card .value { font-size: 2rem; font-weight: bold; color: #00fff5; }
+    .stat-card .label { font-size: 0.8rem; color: #888; margin-top: 5px; }
+    .recent-games { margin-top: 20px; }
+    .recent-game { background: rgba(255,255,255,0.05); padding: 10px 15px; border-radius: 8px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; }
+    .recent-game .players { font-size: 0.9rem; }
+    .recent-game .result { font-size: 0.8rem; color: #888; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 20px; cursor: pointer; }
+    .tab.active { background: #e94560; }
   </style>
 </head>
 <body>
@@ -62,6 +82,30 @@
       <button class="mode-btn" onclick="selectMode('local')">🎮 Local Game<br><small>Two players, one device</small></button>
       <button class="mode-btn" onclick="selectMode('create')">🌐 Create Online Game<br><small>Get a link to share</small></button>
       <button class="mode-btn" onclick="selectMode('join')">🔗 Join Online Game<br><small>Enter game code</small></button>
+      <button class="mode-btn" onclick="showLeaderboard()" style="background: #16213e;">🏆 Leaderboard<br><small>View top players & stats</small></button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard-screen" class="leaderboard hidden">
+      <h1>🏆 Leaderboard</h1>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('rankings')">Rankings</button>
+        <button class="tab" onclick="showTab('stats')">Stats</button>
+        <button class="tab" onclick="showTab('recent')">Recent</button>
+      </div>
+      <div id="tab-rankings">
+        <div class="stats-grid" id="quick-stats"></div>
+        <table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>W/L/T</th><th>Win%</th></tr></thead><tbody id="rankings-body"></tbody></table>
+      </div>
+      <div id="tab-stats" class="hidden">
+        <div class="stats-grid" id="full-stats"></div>
+        <h3 style="margin-top: 20px; color: #e94560;">Winning Patterns</h3>
+        <div id="patterns-chart"></div>
+      </div>
+      <div id="tab-recent" class="hidden recent-games">
+        <div id="recent-games-list"></div>
+      </div>
+      <button class="secondary" onclick="backToMenu()" style="margin-top: 20px;">Back to Menu</button>
     </div>
 
     <!-- Local Setup -->
@@ -140,7 +184,7 @@
     }
 
     function showScreen(id) {
-      ['mode-select','local-setup','online-create','online-waiting','online-join','game'].forEach(s => 
+      ['mode-select','local-setup','online-create','online-waiting','online-join','game','leaderboard-screen'].forEach(s => 
         document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -340,6 +384,76 @@
       input.select();
       document.execCommand('copy');
       alert('Link copied!');
+    }
+
+    // Leaderboard functions
+    async function showLeaderboard() {
+      showScreen('leaderboard-screen');
+      loadLeaderboard();
+      loadStats();
+      loadRecentGames();
+    }
+
+    function showTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      ['rankings', 'stats', 'recent'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+      });
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch(API_URL + '/api/leaderboard');
+        const data = await res.json();
+        const tbody = document.getElementById('rankings-body');
+        tbody.innerHTML = data.players.map((p, i) => `
+          <tr>
+            <td class="rank">${i + 1}</td>
+            <td class="player">${p.player}</td>
+            <td class="wins">${p.wins}</td>
+            <td>${p.wins}/${p.losses}/${p.ties}</td>
+            <td class="winrate">${p.winRate.toFixed(1)}%</td>
+          </tr>
+        `).join('');
+        
+        const topWins = data.players[0]?.wins || 0;
+        const totalPlayers = data.players.length;
+        document.getElementById('quick-stats').innerHTML = `
+          <div class="stat-card"><div class="value">${totalPlayers}</div><div class="label">Players</div></div>
+          <div class="stat-card"><div class="value">${topWins}</div><div class="label">Top Wins</div></div>
+          <div class="stat-card"><div class="value">${data.players[0]?.player || '-'}</div><div class="label">Leader</div></div>
+        `;
+      } catch (e) { console.error('Failed to load leaderboard', e); }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch(API_URL + '/api/stats');
+        const data = await res.json();
+        document.getElementById('full-stats').innerHTML = `
+          <div class="stat-card"><div class="value">${data.totalGames}</div><div class="label">Total Games</div></div>
+          <div class="stat-card"><div class="value">${data.totalWins}</div><div class="label">Decisive Games</div></div>
+          <div class="stat-card"><div class="value">${data.totalTies}</div><div class="label">Ties</div></div>
+        `;
+        const patterns = Object.entries(data.topPatterns || {}).sort((a, b) => b[1] - a[1]);
+        document.getElementById('patterns-chart').innerHTML = patterns.map(([p, c]) => `
+          <div class="recent-game"><span>${p}</span><span class="wins">${c} wins</span></div>
+        `).join('');
+      } catch (e) { console.error('Failed to load stats', e); }
+    }
+
+    async function loadRecentGames() {
+      try {
+        const res = await fetch(API_URL + '/api/recent');
+        const games = await res.json();
+        document.getElementById('recent-games-list').innerHTML = games.map(g => `
+          <div class="recent-game">
+            <div class="players">${g.player1} vs ${g.player2}</div>
+            <div class="result">${g.isTie ? 'Tie' : g.winner + ' won'} • ${g.mode}</div>
+          </div>
+        `).join('');
+      } catch (e) { console.error('Failed to load recent games', e); }
     }
   </script>
 </body>
