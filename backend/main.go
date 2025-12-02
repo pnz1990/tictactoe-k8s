@@ -88,6 +88,12 @@ type GameResult struct {
 	Mode    string `json:"mode"` // "local" or "online"
 }
 
+type Move struct {
+	Index  int    `json:"index"`
+	Player string `json:"player"`
+	Time   int64  `json:"time"` // ms since game start
+}
+
 type OnlineGame struct {
 	ID        string            `json:"id"`
 	Board     [9]string         `json:"board"`
@@ -98,6 +104,8 @@ type OnlineGame struct {
 	Winner    string            `json:"winner,omitempty"`
 	Pattern   string            `json:"pattern,omitempty"`
 	CreatedAt time.Time         `json:"createdAt"`
+	StartedAt time.Time         `json:"startedAt"`
+	Moves     []Move            `json:"moves"`
 	Conns     []*websocket.Conn `json:"-"`
 	mu        sync.Mutex        `json:"-"`
 }
@@ -163,6 +171,52 @@ func saveGameToDynamoDB(result GameResult) {
 	})
 	if err != nil {
 		log.Printf("Failed to save game to DynamoDB: %v", err)
+		dynamoDBOps.WithLabelValues("PutItem", "error").Inc()
+	} else {
+		dynamoDBOps.WithLabelValues("PutItem", "success").Inc()
+	}
+}
+
+func saveOnlineGameToDynamoDB(g *OnlineGame) {
+	if dynamoClient == nil {
+		return
+	}
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	duration := int64(0)
+	if len(g.Moves) > 0 {
+		duration = g.Moves[len(g.Moves)-1].Time
+	}
+
+	// Convert moves to DynamoDB list
+	movesList := make([]types.AttributeValue, len(g.Moves))
+	for i, m := range g.Moves {
+		movesList[i] = &types.AttributeValueMemberM{Value: map[string]types.AttributeValue{
+			"index":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", m.Index)},
+			"player": &types.AttributeValueMemberS{Value: m.Player},
+			"time":   &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", m.Time)},
+		}}
+	}
+
+	item := map[string]types.AttributeValue{
+		"gameId":    &types.AttributeValueMemberS{Value: g.ID},
+		"timestamp": &types.AttributeValueMemberS{Value: timestamp},
+		"player1":   &types.AttributeValueMemberS{Value: g.Player1},
+		"player2":   &types.AttributeValueMemberS{Value: g.Player2},
+		"isTie":     &types.AttributeValueMemberBOOL{Value: g.Winner == ""},
+		"mode":      &types.AttributeValueMemberS{Value: "online"},
+		"moves":     &types.AttributeValueMemberL{Value: movesList},
+		"duration":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", duration)},
+	}
+	if g.Winner != "" {
+		item["winner"] = &types.AttributeValueMemberS{Value: g.Winner}
+		item["pattern"] = &types.AttributeValueMemberS{Value: g.Pattern}
+	}
+	_, err := dynamoClient.PutItem(context.Background(), &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item:      item,
+	})
+	if err != nil {
+		log.Printf("Failed to save online game to DynamoDB: %v", err)
 		dynamoDBOps.WithLabelValues("PutItem", "error").Inc()
 	} else {
 		dynamoDBOps.WithLabelValues("PutItem", "success").Inc()
@@ -304,6 +358,7 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	game.Player2 = req.Player2
 	game.Status = "playing"
+	game.StartedAt = time.Now()
 	gamesMu.Unlock()
 	game.broadcast(WSMessage{Type: "game_start", Payload: game.toJSON()})
 	w.Header().Set("Content-Type", "application/json")
@@ -399,6 +454,14 @@ func (g *OnlineGame) handleMessage(msg WSMessage) {
 		return
 	}
 	g.Board[idx] = g.Turn
+
+	// Record move with timestamp
+	moveTime := int64(0)
+	if !g.StartedAt.IsZero() {
+		moveTime = time.Since(g.StartedAt).Milliseconds()
+	}
+	g.Moves = append(g.Moves, Move{Index: idx, Player: g.Turn, Time: moveTime})
+
 	wins := [][]int{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, {0, 4, 8}, {2, 4, 6}}
 	patterns := map[string]string{
 		"0,1,2": "row1", "3,4,5": "row2", "6,7,8": "row3",
@@ -412,8 +475,8 @@ func (g *OnlineGame) handleMessage(msg WSMessage) {
 			key := fmt.Sprintf("%d,%d,%d", w[0], w[1], w[2])
 			g.Pattern = patterns[key]
 			g.broadcast(WSMessage{Type: "game_state", Payload: g.toJSON()})
+			go saveOnlineGameToDynamoDB(g)
 			result := GameResult{Player1: g.Player1, Player2: g.Player2, Winner: g.Winner, Pattern: g.Pattern, Mode: "online"}
-			go saveGameToDynamoDB(result)
 			recordMetrics(result)
 			onlineGamesActive.Dec()
 			return
@@ -429,8 +492,8 @@ func (g *OnlineGame) handleMessage(msg WSMessage) {
 	if isFull {
 		g.Status = "finished"
 		g.broadcast(WSMessage{Type: "game_state", Payload: g.toJSON()})
+		go saveOnlineGameToDynamoDB(g)
 		result := GameResult{Player1: g.Player1, Player2: g.Player2, IsTie: true, Mode: "online"}
-		go saveGameToDynamoDB(result)
 		recordMetrics(result)
 		onlineGamesActive.Dec()
 		return
@@ -441,6 +504,592 @@ func (g *OnlineGame) handleMessage(msg WSMessage) {
 		g.Turn = "X"
 	}
 	g.broadcast(WSMessage{Type: "game_state", Payload: g.toJSON()})
+}
+
+// Leaderboard structures
+type PlayerStats struct {
+	Player      string  `json:"player"`
+	Wins        int     `json:"wins"`
+	Losses      int     `json:"losses"`
+	Ties        int     `json:"ties"`
+	TotalGames  int     `json:"totalGames"`
+	WinRate     float64 `json:"winRate"`
+	WinStreak   int     `json:"winStreak"`
+	BestPattern string  `json:"bestPattern,omitempty"`
+}
+
+type LeaderboardResponse struct {
+	Players   []PlayerStats `json:"players"`
+	UpdatedAt string        `json:"updatedAt"`
+}
+
+type RecentGame struct {
+	GameID    string `json:"gameId"`
+	Player1   string `json:"player1"`
+	Player2   string `json:"player2"`
+	Winner    string `json:"winner,omitempty"`
+	Pattern   string `json:"pattern,omitempty"`
+	IsTie     bool   `json:"isTie"`
+	Mode      string `json:"mode"`
+	Timestamp string `json:"timestamp"`
+}
+
+type StatsResponse struct {
+	TotalGames      int            `json:"totalGames"`
+	TotalWins       int            `json:"totalWins"`
+	TotalTies       int            `json:"totalTies"`
+	TopPatterns     map[string]int `json:"topPatterns"`
+	UpdatedAt       string         `json:"updatedAt"`
+	AvgMovesPerGame float64        `json:"avgMovesPerGame"`
+	XWinRate        float64        `json:"xWinRate"`
+	OWinRate        float64        `json:"oWinRate"`
+	TieRate         float64        `json:"tieRate"`
+	MostActiveHour  int            `json:"mostActiveHour"`
+	LongestStreak   int            `json:"longestStreak"`
+	StreakHolder    string         `json:"streakHolder"`
+}
+
+func leaderboardHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if dynamoClient == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Scan all online games and aggregate stats
+	playerStats := make(map[string]*PlayerStats)
+	playerPatterns := make(map[string]map[string]int) // player -> pattern -> count
+	var lastKey map[string]types.AttributeValue
+
+	for {
+		input := &dynamodb.ScanInput{
+			TableName:         aws.String(tableName),
+			ExclusiveStartKey: lastKey,
+		}
+		result, err := dynamoClient.Scan(context.Background(), input)
+		if err != nil {
+			log.Printf("Scan error: %v", err)
+			dynamoDBOps.WithLabelValues("Scan", "error").Inc()
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		dynamoDBOps.WithLabelValues("Scan", "success").Inc()
+
+		for _, item := range result.Items {
+			mode := getStringAttr(item, "mode")
+			// Only count online games for leaderboard
+			if mode != "online" {
+				continue
+			}
+
+			p1 := getStringAttr(item, "player1")
+			p2 := getStringAttr(item, "player2")
+			winner := getStringAttr(item, "winner")
+			pattern := getStringAttr(item, "pattern")
+			isTie := getBoolAttr(item, "isTie")
+
+			// Skip synthetic test data
+			if len(p1) >= 9 && p1[:9] == "Synthetic" {
+				continue
+			}
+
+			ensurePlayer(playerStats, p1)
+			ensurePlayer(playerStats, p2)
+			if playerPatterns[p1] == nil {
+				playerPatterns[p1] = make(map[string]int)
+			}
+			if playerPatterns[p2] == nil {
+				playerPatterns[p2] = make(map[string]int)
+			}
+
+			if isTie {
+				playerStats[p1].Ties++
+				playerStats[p2].Ties++
+			} else if winner != "" {
+				playerStats[winner].Wins++
+				if pattern != "" {
+					playerPatterns[winner][pattern]++
+				}
+				loser := p1
+				if winner == p1 {
+					loser = p2
+				}
+				playerStats[loser].Losses++
+			}
+			playerStats[p1].TotalGames++
+			playerStats[p2].TotalGames++
+		}
+
+		lastKey = result.LastEvaluatedKey
+		if lastKey == nil {
+			break
+		}
+	}
+
+	// Convert to slice, calculate win rates and best patterns
+	players := make([]PlayerStats, 0, len(playerStats))
+	for name, ps := range playerStats {
+		if ps.TotalGames > 0 {
+			ps.WinRate = float64(ps.Wins) / float64(ps.TotalGames) * 100
+		}
+		// Find best pattern
+		if patterns, ok := playerPatterns[name]; ok {
+			maxCount := 0
+			for p, c := range patterns {
+				if c > maxCount {
+					maxCount = c
+					ps.BestPattern = p
+				}
+			}
+		}
+		// Get current streak from memory
+		if streak, ok := winStreaks[name]; ok {
+			ps.WinStreak = streak
+		}
+		players = append(players, *ps)
+	}
+
+	// Sort by wins descending
+	for i := 0; i < len(players); i++ {
+		for j := i + 1; j < len(players); j++ {
+			if players[j].Wins > players[i].Wins {
+				players[i], players[j] = players[j], players[i]
+			}
+		}
+	}
+
+	// Limit to top 20
+	if len(players) > 20 {
+		players = players[:20]
+	}
+
+	resp := LeaderboardResponse{
+		Players:   players,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func statsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if dynamoClient == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var totalGames, totalWins, totalTies, xWins, oWins int
+	patterns := make(map[string]int)
+	hourCounts := make(map[int]int)
+	playerWinStreaks := make(map[string]int)
+	longestStreak, streakHolder := 0, ""
+	var lastKey map[string]types.AttributeValue
+
+	for {
+		input := &dynamodb.ScanInput{
+			TableName:         aws.String(tableName),
+			ExclusiveStartKey: lastKey,
+		}
+		result, err := dynamoClient.Scan(context.Background(), input)
+		if err != nil {
+			dynamoDBOps.WithLabelValues("Scan", "error").Inc()
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		dynamoDBOps.WithLabelValues("Scan", "success").Inc()
+
+		for _, item := range result.Items {
+			mode := getStringAttr(item, "mode")
+			if mode != "online" {
+				continue
+			}
+			p1 := getStringAttr(item, "player1")
+			if len(p1) >= 9 && p1[:9] == "Synthetic" {
+				continue
+			}
+			totalGames++
+
+			// Track hour of play
+			ts := getStringAttr(item, "timestamp")
+			if len(ts) >= 13 {
+				hour := 0
+				fmt.Sscanf(ts[11:13], "%d", &hour)
+				hourCounts[hour]++
+			}
+
+			if getBoolAttr(item, "isTie") {
+				totalTies++
+			} else {
+				totalWins++
+				winner := getStringAttr(item, "winner")
+				pattern := getStringAttr(item, "pattern")
+				if pattern != "" {
+					patterns[pattern]++
+				}
+				// X always goes first, so winner == p1 means X won
+				if winner == p1 {
+					xWins++
+				} else {
+					oWins++
+				}
+				// Track streaks
+				playerWinStreaks[winner]++
+				if playerWinStreaks[winner] > longestStreak {
+					longestStreak = playerWinStreaks[winner]
+					streakHolder = winner
+				}
+			}
+		}
+
+		lastKey = result.LastEvaluatedKey
+		if lastKey == nil {
+			break
+		}
+	}
+
+	// Find most active hour
+	mostActiveHour, maxHourCount := 0, 0
+	for h, c := range hourCounts {
+		if c > maxHourCount {
+			maxHourCount = c
+			mostActiveHour = h
+		}
+	}
+
+	// Calculate rates
+	var xRate, oRate, tieRate float64
+	if totalGames > 0 {
+		xRate = float64(xWins) / float64(totalGames) * 100
+		oRate = float64(oWins) / float64(totalGames) * 100
+		tieRate = float64(totalTies) / float64(totalGames) * 100
+	}
+
+	resp := StatsResponse{
+		TotalGames:     totalGames,
+		TotalWins:      totalWins,
+		TotalTies:      totalTies,
+		TopPatterns:    patterns,
+		XWinRate:       xRate,
+		OWinRate:       oRate,
+		TieRate:        tieRate,
+		MostActiveHour: mostActiveHour,
+		LongestStreak:  longestStreak,
+		StreakHolder:   streakHolder,
+		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func recentGamesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if dynamoClient == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	input := &dynamodb.ScanInput{
+		TableName: aws.String(tableName),
+		Limit:     aws.Int32(100),
+	}
+	result, err := dynamoClient.Scan(context.Background(), input)
+	if err != nil {
+		dynamoDBOps.WithLabelValues("Scan", "error").Inc()
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	dynamoDBOps.WithLabelValues("Scan", "success").Inc()
+
+	games := make([]RecentGame, 0)
+	for _, item := range result.Items {
+		mode := getStringAttr(item, "mode")
+		if mode != "online" {
+			continue
+		}
+		p1 := getStringAttr(item, "player1")
+		if len(p1) >= 9 && p1[:9] == "Synthetic" {
+			continue
+		}
+		games = append(games, RecentGame{
+			GameID:    getStringAttr(item, "gameId"),
+			Player1:   p1,
+			Player2:   getStringAttr(item, "player2"),
+			Winner:    getStringAttr(item, "winner"),
+			Pattern:   getStringAttr(item, "pattern"),
+			IsTie:     getBoolAttr(item, "isTie"),
+			Mode:      mode,
+			Timestamp: getStringAttr(item, "timestamp"),
+		})
+	}
+
+	// Sort by timestamp descending
+	for i := 0; i < len(games); i++ {
+		for j := i + 1; j < len(games); j++ {
+			if games[j].Timestamp > games[i].Timestamp {
+				games[i], games[j] = games[j], games[i]
+			}
+		}
+	}
+
+	if len(games) > 20 {
+		games = games[:20]
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(games)
+}
+
+func playerStatsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	player := r.URL.Query().Get("player")
+	if player == "" {
+		http.Error(w, "player parameter required", http.StatusBadRequest)
+		return
+	}
+	if dynamoClient == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	stats := &PlayerStats{Player: player}
+	var lastKey map[string]types.AttributeValue
+
+	for {
+		input := &dynamodb.ScanInput{
+			TableName:         aws.String(tableName),
+			ExclusiveStartKey: lastKey,
+			FilterExpression:  aws.String("player1 = :p OR player2 = :p"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":p": &types.AttributeValueMemberS{Value: player},
+			},
+		}
+		result, err := dynamoClient.Scan(context.Background(), input)
+		if err != nil {
+			dynamoDBOps.WithLabelValues("Scan", "error").Inc()
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		dynamoDBOps.WithLabelValues("Scan", "success").Inc()
+
+		for _, item := range result.Items {
+			stats.TotalGames++
+			if getBoolAttr(item, "isTie") {
+				stats.Ties++
+			} else {
+				winner := getStringAttr(item, "winner")
+				if winner == player {
+					stats.Wins++
+				} else {
+					stats.Losses++
+				}
+			}
+		}
+
+		lastKey = result.LastEvaluatedKey
+		if lastKey == nil {
+			break
+		}
+	}
+
+	if stats.TotalGames > 0 {
+		stats.WinRate = float64(stats.Wins) / float64(stats.TotalGames) * 100
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+func getStringAttr(item map[string]types.AttributeValue, key string) string {
+	if v, ok := item[key].(*types.AttributeValueMemberS); ok {
+		return v.Value
+	}
+	return ""
+}
+
+func getBoolAttr(item map[string]types.AttributeValue, key string) bool {
+	if v, ok := item[key].(*types.AttributeValueMemberBOOL); ok {
+		return v.Value
+	}
+	return false
+}
+
+func ensurePlayer(stats map[string]*PlayerStats, player string) {
+	if _, ok := stats[player]; !ok {
+		stats[player] = &PlayerStats{Player: player}
+	}
+}
+
+// Game replay response
+type GameReplay struct {
+	GameID    string `json:"gameId"`
+	Player1   string `json:"player1"`
+	Player2   string `json:"player2"`
+	Winner    string `json:"winner,omitempty"`
+	Pattern   string `json:"pattern,omitempty"`
+	IsTie     bool   `json:"isTie"`
+	Timestamp string `json:"timestamp"`
+	Duration  int64  `json:"duration"`
+	Moves     []Move `json:"moves"`
+}
+
+func gameReplayHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	gameID := r.URL.Query().Get("id")
+	if gameID == "" {
+		http.Error(w, "id parameter required", http.StatusBadRequest)
+		return
+	}
+	if dynamoClient == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Query by gameId
+	input := &dynamodb.QueryInput{
+		TableName:              aws.String(tableName),
+		KeyConditionExpression: aws.String("gameId = :gid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":gid": &types.AttributeValueMemberS{Value: gameID},
+		},
+		Limit: aws.Int32(1),
+	}
+	result, err := dynamoClient.Query(context.Background(), input)
+	if err != nil {
+		dynamoDBOps.WithLabelValues("Query", "error").Inc()
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	dynamoDBOps.WithLabelValues("Query", "success").Inc()
+
+	if len(result.Items) == 0 {
+		http.Error(w, "Game not found", http.StatusNotFound)
+		return
+	}
+
+	item := result.Items[0]
+	replay := GameReplay{
+		GameID:    getStringAttr(item, "gameId"),
+		Player1:   getStringAttr(item, "player1"),
+		Player2:   getStringAttr(item, "player2"),
+		Winner:    getStringAttr(item, "winner"),
+		Pattern:   getStringAttr(item, "pattern"),
+		IsTie:     getBoolAttr(item, "isTie"),
+		Timestamp: getStringAttr(item, "timestamp"),
+		Duration:  getIntAttr(item, "duration"),
+		Moves:     getMovesAttr(item, "moves"),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(replay)
+}
+
+func playerGamesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	player := r.URL.Query().Get("player")
+	if player == "" {
+		http.Error(w, "player parameter required", http.StatusBadRequest)
+		return
+	}
+	if dynamoClient == nil {
+		http.Error(w, "Database not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	input := &dynamodb.ScanInput{
+		TableName:        aws.String(tableName),
+		FilterExpression: aws.String("(player1 = :p OR player2 = :p) AND #m = :online"),
+		ExpressionAttributeNames: map[string]string{
+			"#m": "mode",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":p":      &types.AttributeValueMemberS{Value: player},
+			":online": &types.AttributeValueMemberS{Value: "online"},
+		},
+	}
+	result, err := dynamoClient.Scan(context.Background(), input)
+	if err != nil {
+		dynamoDBOps.WithLabelValues("Scan", "error").Inc()
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	dynamoDBOps.WithLabelValues("Scan", "success").Inc()
+
+	games := make([]RecentGame, 0)
+	for _, item := range result.Items {
+		games = append(games, RecentGame{
+			GameID:    getStringAttr(item, "gameId"),
+			Player1:   getStringAttr(item, "player1"),
+			Player2:   getStringAttr(item, "player2"),
+			Winner:    getStringAttr(item, "winner"),
+			Pattern:   getStringAttr(item, "pattern"),
+			IsTie:     getBoolAttr(item, "isTie"),
+			Mode:      "online",
+			Timestamp: getStringAttr(item, "timestamp"),
+		})
+	}
+
+	// Sort by timestamp descending
+	for i := 0; i < len(games); i++ {
+		for j := i + 1; j < len(games); j++ {
+			if games[j].Timestamp > games[i].Timestamp {
+				games[i], games[j] = games[j], games[i]
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(games)
+}
+
+func getIntAttr(item map[string]types.AttributeValue, key string) int64 {
+	if v, ok := item[key].(*types.AttributeValueMemberN); ok {
+		var n int64
+		fmt.Sscanf(v.Value, "%d", &n)
+		return n
+	}
+	return 0
+}
+
+func getMovesAttr(item map[string]types.AttributeValue, key string) []Move {
+	moves := make([]Move, 0)
+	if v, ok := item[key].(*types.AttributeValueMemberL); ok {
+		for _, m := range v.Value {
+			if mv, ok := m.(*types.AttributeValueMemberM); ok {
+				var idx int
+				var t int64
+				if n, ok := mv.Value["index"].(*types.AttributeValueMemberN); ok {
+					fmt.Sscanf(n.Value, "%d", &idx)
+				}
+				if n, ok := mv.Value["time"].(*types.AttributeValueMemberN); ok {
+					fmt.Sscanf(n.Value, "%d", &t)
+				}
+				player := ""
+				if s, ok := mv.Value["player"].(*types.AttributeValueMemberS); ok {
+					player = s.Value
+				}
+				moves = append(moves, Move{Index: idx, Player: player, Time: t})
+			}
+		}
+	}
+	return moves
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -459,6 +1108,12 @@ func main() {
 	http.HandleFunc("/api/game/join", metricsMiddleware("/api/game/join", corsMiddleware(joinGameHandler)))
 	http.HandleFunc("/api/game/get", metricsMiddleware("/api/game/get", corsMiddleware(getGameHandler)))
 	http.HandleFunc("/api/game/ws", wsHandler)
+	http.HandleFunc("/api/leaderboard", metricsMiddleware("/api/leaderboard", corsMiddleware(leaderboardHandler)))
+	http.HandleFunc("/api/stats", metricsMiddleware("/api/stats", corsMiddleware(statsHandler)))
+	http.HandleFunc("/api/recent", metricsMiddleware("/api/recent", corsMiddleware(recentGamesHandler)))
+	http.HandleFunc("/api/player", metricsMiddleware("/api/player", corsMiddleware(playerStatsHandler)))
+	http.HandleFunc("/api/player/games", metricsMiddleware("/api/player/games", corsMiddleware(playerGamesHandler)))
+	http.HandleFunc("/api/replay", metricsMiddleware("/api/replay", corsMiddleware(gameReplayHandler)))
 	http.HandleFunc("/healthz", metricsMiddleware("/healthz", healthHandler))
 	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("Backend starting on :%s", port)

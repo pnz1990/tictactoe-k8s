@@ -50,6 +50,39 @@
     .waiting { animation: blink 1s infinite; }
     @keyframes blink { 50% { opacity: 0.5; } }
     .your-turn { background: rgba(0,255,245,0.2); border-color: #00fff5; }
+    .leaderboard { width: 100%; max-width: 500px; }
+    .leaderboard table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .leaderboard th, .leaderboard td { padding: 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .leaderboard th { color: #e94560; font-size: 0.9rem; }
+    .leaderboard tr:hover { background: rgba(255,255,255,0.05); }
+    .leaderboard .rank { color: #00fff5; font-weight: bold; }
+    .leaderboard .player { color: #fff; }
+    .leaderboard .wins { color: #4ade80; }
+    .leaderboard .winrate { color: #fbbf24; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+    .stat-card { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; }
+    .stat-card .value { font-size: 2rem; font-weight: bold; color: #00fff5; }
+    .stat-card .label { font-size: 0.8rem; color: #888; margin-top: 5px; }
+    .recent-games { margin-top: 20px; }
+    .recent-game { background: rgba(255,255,255,0.05); padding: 10px 15px; border-radius: 8px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; }
+    .recent-game .players { font-size: 0.9rem; }
+    .recent-game .result { font-size: 0.8rem; color: #888; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 20px; cursor: pointer; }
+    .tab.active { background: #e94560; }
+    .replay-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 20px 0; }
+    .replay-controls button { padding: 10px 15px; font-size: 1.2rem; }
+    .replay-info { text-align: center; margin: 10px 0; color: #888; }
+    .game-item { background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 8px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .game-item:hover { background: rgba(255,255,255,0.1); }
+    .game-item .info { flex: 1; }
+    .game-item .actions { display: flex; gap: 8px; }
+    .game-item .actions button { padding: 6px 12px; font-size: 0.8rem; }
+    .profile { width: 100%; max-width: 500px; }
+    .profile-header { text-align: center; margin-bottom: 20px; }
+    .profile-header h2 { color: #00fff5; margin: 10px 0; }
+    .clickable { cursor: pointer; text-decoration: underline; }
+    .clickable:hover { color: #00fff5; }
   </style>
 </head>
 <body>
@@ -57,21 +90,94 @@
   <div class="container">
     <!-- Mode Selection -->
     <div id="mode-select" class="mode-select">
-      <h1>⚡ Tic Tac Toe v3.0 ⚡</h1>
+      <h1>⚡ Tic Tac Toe v3.1 ⚡</h1>
       <p style="margin-bottom: 20px; color: #e94560;">Choose game mode</p>
       <button class="mode-btn" onclick="selectMode('local')">🎮 Local Game<br><small>Two players, one device</small></button>
       <button class="mode-btn" onclick="selectMode('create')">🌐 Create Online Game<br><small>Get a link to share</small></button>
       <button class="mode-btn" onclick="selectMode('join')">🔗 Join Online Game<br><small>Enter game code</small></button>
+      <button class="mode-btn" onclick="showLeaderboard()" style="background: #16213e;">🏆 Leaderboard<br><small>View top players & stats</small></button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboard-screen" class="leaderboard hidden">
+      <h1>🏆 Leaderboard</h1>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('rankings')">Rankings</button>
+        <button class="tab" onclick="showTab('stats')">Stats</button>
+        <button class="tab" onclick="showTab('recent')">Recent</button>
+      </div>
+      <div id="tab-rankings">
+        <div class="stats-grid" id="quick-stats"></div>
+        <table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>W/L/T</th><th>Win%</th><th>🔥</th><th>Fav</th></tr></thead><tbody id="rankings-body"></tbody></table>
+      </div>
+      <div id="tab-stats" class="hidden">
+        <div class="stats-grid" id="full-stats"></div>
+        <div id="patterns-chart"></div>
+      </div>
+      <div id="tab-recent" class="hidden recent-games">
+        <div id="recent-games-list"></div>
+      </div>
+      <button class="secondary" onclick="backToMenu()" style="margin-top: 20px;">Back to Menu</button>
+    </div>
+
+    <!-- Player Profile -->
+    <div id="profile-screen" class="profile hidden">
+      <div class="profile-header">
+        <h1>👤 Player Profile</h1>
+        <h2 id="profile-name"></h2>
+      </div>
+      <div class="stats-grid" id="profile-stats"></div>
+      <h3 style="color: #e94560; margin: 20px 0 10px;">Game History</h3>
+      <div id="profile-games"></div>
+      <button class="secondary" onclick="backToMenu()" style="margin-top: 20px;">Back to Menu</button>
+    </div>
+
+    <!-- Game Replay -->
+    <div id="replay-screen" class="hidden">
+      <h1>🎬 Game Replay</h1>
+      <div class="replay-info" id="replay-info"></div>
+      <div class="board" id="replay-board"></div>
+      <div class="replay-controls">
+        <button onclick="replayStep(-1)">◀</button>
+        <button onclick="toggleReplay()" id="replay-play-btn">▶</button>
+        <button onclick="replayStep(1)">▶</button>
+      </div>
+      <div class="replay-info">Move <span id="replay-move">0</span>/<span id="replay-total">0</span></div>
+      <button onclick="shareReplay()" style="margin-top: 10px;">🔗 Share Replay</button>
+      <button class="secondary" onclick="backToMenu()" style="margin-top: 10px;">Back to Menu</button>
     </div>
 
     <!-- Local Setup -->
     <div id="local-setup" class="setup hidden">
       <h1>⚡ Local Game ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Choose opponent</p>
+      <button class="mode-btn" onclick="showLocalVsPlayer()">👥 Two Players<br><small>Play with a friend</small></button>
+      <button class="mode-btn" onclick="showLocalVsAI()">🤖 vs AI<br><small>Challenge the computer</small></button>
+      <button class="secondary" onclick="backToMenu()">Back</button>
+    </div>
+
+    <!-- Local vs Player -->
+    <div id="local-vs-player" class="setup hidden">
+      <h1>⚡ Two Players ⚡</h1>
       <p style="margin-bottom: 20px; color: #e94560;">Enter player names</p>
       <div><input type="text" id="p1name" placeholder="Player 1 (X)" maxlength="15"></div>
       <div><input type="text" id="p2name" placeholder="Player 2 (O)" maxlength="15"></div>
       <button onclick="startLocalGame()">Start Game</button>
-      <button class="secondary" onclick="backToMenu()">Back</button>
+      <button class="secondary" onclick="selectMode('local')">Back</button>
+    </div>
+
+    <!-- Local vs AI -->
+    <div id="local-vs-ai" class="setup hidden">
+      <h1>⚡ vs AI ⚡</h1>
+      <p style="margin-bottom: 20px; color: #e94560;">Enter your name & difficulty</p>
+      <div><input type="text" id="ai-player-name" placeholder="Your name (X)" maxlength="15"></div>
+      <div class="difficulty-select" style="margin: 15px 0;">
+        <button class="tab active" onclick="setDifficulty('easy', this)">😊 Easy</button>
+        <button class="tab" onclick="setDifficulty('medium', this)">🤔 Medium</button>
+        <button class="tab" onclick="setDifficulty('hard', this)">😈 Hard</button>
+      </div>
+      <button onclick="startAIGame()">Start Game</button>
+      <button class="secondary" onclick="selectMode('local')">Back</button>
     </div>
 
     <!-- Online Create -->
@@ -107,7 +213,7 @@
 
     <!-- Game Board -->
     <div id="game" class="hidden">
-      <h1 id="title">⚡ Tic Tac Toe v3.0 ⚡</h1>
+      <h1 id="title">⚡ Tic Tac Toe v3.1 ⚡</h1>
       <div class="players">
         <span class="x-player">X: <span id="p1display"></span></span>
         <span class="o-player">O: <span id="p2display"></span></span>
@@ -131,16 +237,13 @@
     
     let gameMode = 'local', board = [], turn = 'X', over = false, player1 = '', player2 = '', myRole = '', gameId = '', ws = null;
 
-    // Check URL for game code
+    // Check URL parameters
     const urlParams = new URLSearchParams(window.location.search);
+    const replayParam = urlParams.get('replay');
     const joinCode = urlParams.get('game');
-    if (joinCode) {
-      document.getElementById('join-code').value = joinCode;
-      selectMode('join');
-    }
 
     function showScreen(id) {
-      ['mode-select','local-setup','online-create','online-waiting','online-join','game'].forEach(s => 
+      ['mode-select','local-setup','local-vs-player','local-vs-ai','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
         document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -151,18 +254,107 @@
       else if (mode === 'join') showScreen('online-join');
     }
 
+    function showLocalVsPlayer() { showScreen('local-vs-player'); }
+    function showLocalVsAI() { showScreen('local-vs-ai'); }
+
+    let aiDifficulty = 'easy';
+    let isAIGame = false;
+
+    function setDifficulty(level, btn) {
+      aiDifficulty = level;
+      document.querySelectorAll('#local-vs-ai .tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function startAIGame() {
+      gameMode = 'local';
+      isAIGame = true;
+      player1 = document.getElementById('ai-player-name').value.trim() || 'Player';
+      player2 = 'AI (' + aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1) + ')';
+      startGame();
+    }
+
     function backToMenu() {
       if (ws) { ws.close(); ws = null; }
       gameId = '';
+      isAIGame = false;
       window.history.replaceState({}, '', window.location.pathname);
       showScreen('mode-select');
     }
 
     function startLocalGame() {
       gameMode = 'local';
+      isAIGame = false;
       player1 = document.getElementById('p1name').value.trim() || 'Player 1';
       player2 = document.getElementById('p2name').value.trim() || 'Player 2';
       startGame();
+    }
+
+    // AI Logic
+    function getAIMove() {
+      const empty = board.map((c, i) => c === '' ? i : -1).filter(i => i >= 0);
+      if (empty.length === 0) return -1;
+
+      if (aiDifficulty === 'easy') {
+        return empty[Math.floor(Math.random() * empty.length)];
+      } else if (aiDifficulty === 'medium') {
+        return Math.random() < 0.5 ? getBestMove() : empty[Math.floor(Math.random() * empty.length)];
+      } else {
+        return getBestMove();
+      }
+    }
+
+    function getBestMove() {
+      let bestScore = -Infinity;
+      let bestMove = -1;
+      for (let i = 0; i < 9; i++) {
+        if (board[i] === '') {
+          board[i] = 'O';
+          const score = minimax(board, 0, false);
+          board[i] = '';
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = i;
+          }
+        }
+      }
+      return bestMove;
+    }
+
+    function minimax(b, depth, isMaximizing) {
+      const winner = checkWinner(b);
+      if (winner === 'O') return 10 - depth;
+      if (winner === 'X') return depth - 10;
+      if (b.every(c => c !== '')) return 0;
+
+      if (isMaximizing) {
+        let best = -Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (b[i] === '') {
+            b[i] = 'O';
+            best = Math.max(best, minimax(b, depth + 1, false));
+            b[i] = '';
+          }
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (b[i] === '') {
+            b[i] = 'X';
+            best = Math.min(best, minimax(b, depth + 1, true));
+            b[i] = '';
+          }
+        }
+        return best;
+      }
+    }
+
+    function checkWinner(b) {
+      for (const [a, c, d] of wins) {
+        if (b[a] && b[a] === b[c] && b[c] === b[d]) return b[a];
+      }
+      return null;
     }
 
     async function createOnlineGame() {
@@ -290,6 +482,8 @@
         if (!isMyTurn()) return;
         ws.send(JSON.stringify({type: 'move', payload: {index: i, player: turn === 'X' ? player1 : player2}}));
       } else {
+        // In AI game, only allow player (X) to move on their turn
+        if (isAIGame && turn === 'O') return;
         board[i] = turn;
         renderBoard();
         checkWin();
@@ -312,6 +506,20 @@
       } else {
         turn = turn === 'X' ? 'O' : 'X';
         updateStatus();
+        // AI's turn
+        if (isAIGame && turn === 'O' && !over) {
+          setTimeout(makeAIMove, 500);
+        }
+      }
+    }
+
+    function makeAIMove() {
+      if (over) return;
+      const move = getAIMove();
+      if (move >= 0) {
+        board[move] = 'O';
+        renderBoard();
+        checkWin();
       }
     }
 
@@ -340,6 +548,208 @@
       input.select();
       document.execCommand('copy');
       alert('Link copied!');
+    }
+
+    // Leaderboard functions
+    async function showLeaderboard() {
+      showScreen('leaderboard-screen');
+      loadLeaderboard();
+      loadStats();
+      loadRecentGames();
+    }
+
+    function showTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      ['rankings', 'stats', 'recent'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+      });
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch(API_URL + '/api/leaderboard');
+        const data = await res.json();
+        const tbody = document.getElementById('rankings-body');
+        tbody.innerHTML = data.players.length ? data.players.map((p, i) => `
+          <tr>
+            <td class="rank">${i + 1}</td>
+            <td class="player clickable" onclick="showProfile('${p.player}')">${p.player}</td>
+            <td class="wins">${p.wins}</td>
+            <td>${p.wins}/${p.losses}/${p.ties}</td>
+            <td class="winrate">${p.winRate.toFixed(1)}%</td>
+            <td>${p.winStreak || 0}</td>
+            <td style="font-size:0.8rem">${p.bestPattern || '-'}</td>
+          </tr>
+        `).join('') : '<tr><td colspan="7" style="text-align:center;color:#888">No online games yet</td></tr>';
+        
+        const topWins = data.players[0]?.wins || 0;
+        const totalPlayers = data.players.length;
+        const topStreak = Math.max(...data.players.map(p => p.winStreak || 0), 0);
+        document.getElementById('quick-stats').innerHTML = `
+          <div class="stat-card"><div class="value">${totalPlayers}</div><div class="label">Players</div></div>
+          <div class="stat-card"><div class="value">${topWins}</div><div class="label">Top Wins</div></div>
+          <div class="stat-card"><div class="value">${topStreak}</div><div class="label">Best Streak</div></div>
+        `;
+      } catch (e) { console.error('Failed to load leaderboard', e); }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch(API_URL + '/api/stats');
+        const data = await res.json();
+        document.getElementById('full-stats').innerHTML = `
+          <div class="stat-card"><div class="value">${data.totalGames}</div><div class="label">Online Games</div></div>
+          <div class="stat-card"><div class="value">${data.totalWins}</div><div class="label">Decisive</div></div>
+          <div class="stat-card"><div class="value">${data.totalTies}</div><div class="label">Ties</div></div>
+          <div class="stat-card"><div class="value">${data.xWinRate?.toFixed(1) || 0}%</div><div class="label">X Win Rate</div></div>
+          <div class="stat-card"><div class="value">${data.oWinRate?.toFixed(1) || 0}%</div><div class="label">O Win Rate</div></div>
+          <div class="stat-card"><div class="value">${data.tieRate?.toFixed(1) || 0}%</div><div class="label">Tie Rate</div></div>
+        `;
+        const patterns = Object.entries(data.topPatterns || {}).sort((a, b) => b[1] - a[1]);
+        document.getElementById('patterns-chart').innerHTML = `
+          <h3 style="margin: 15px 0 10px; color: #e94560;">🎲 Winning Patterns</h3>
+          ${patterns.map(([p, c]) => `<div class="recent-game"><span>${p}</span><span class="wins">${c} wins</span></div>`).join('')}
+          <h3 style="margin: 15px 0 10px; color: #e94560;">🔥 Records</h3>
+          <div class="recent-game"><span>Longest Win Streak</span><span class="wins">${data.longestStreak || 0} by ${data.streakHolder || '-'}</span></div>
+          <div class="recent-game"><span>Peak Hour (UTC)</span><span class="wins">${data.mostActiveHour || 0}:00</span></div>
+        `;
+      } catch (e) { console.error('Failed to load stats', e); }
+    }
+
+    async function loadRecentGames() {
+      try {
+        const res = await fetch(API_URL + '/api/recent');
+        const games = await res.json();
+        document.getElementById('recent-games-list').innerHTML = games.length ? games.map(g => `
+          <div class="game-item" onclick="loadReplay('${g.gameId}')">
+            <div class="info">
+              <div class="players"><span class="clickable" onclick="event.stopPropagation();showProfile('${g.player1}')">${g.player1}</span> vs <span class="clickable" onclick="event.stopPropagation();showProfile('${g.player2}')">${g.player2}</span></div>
+              <div class="result">${g.isTie ? '🤝 Tie' : '🏆 ' + g.winner + ' won'}</div>
+            </div>
+            <button onclick="event.stopPropagation();loadReplay('${g.gameId}')">▶ Replay</button>
+          </div>
+        `).join('') : '<p style="color: #888; text-align: center;">No online games yet. Be the first!</p>';
+      } catch (e) { console.error('Failed to load recent games', e); }
+    }
+
+    // Replay functionality
+    let replayData = null, replayIndex = 0, replayInterval = null;
+
+    async function loadReplay(gameId) {
+      try {
+        const res = await fetch(API_URL + '/api/replay?id=' + gameId);
+        if (!res.ok) { alert('Game not found or no replay data'); return; }
+        replayData = await res.json();
+        replayIndex = 0;
+        if (replayInterval) clearInterval(replayInterval);
+        showScreen('replay-screen');
+        document.getElementById('replay-info').innerHTML = `
+          <span class="clickable" onclick="showProfile('${replayData.player1}')">${replayData.player1}</span> vs 
+          <span class="clickable" onclick="showProfile('${replayData.player2}')">${replayData.player2}</span><br>
+          <small>${replayData.isTie ? 'Tie' : replayData.winner + ' won'} • ${new Date(replayData.timestamp).toLocaleDateString()}</small>
+        `;
+        document.getElementById('replay-total').textContent = replayData.moves?.length || 0;
+        renderReplayBoard();
+      } catch (e) { alert('Failed to load replay'); }
+    }
+
+    function renderReplayBoard() {
+      const board = Array(9).fill('');
+      for (let i = 0; i < replayIndex && replayData.moves; i++) {
+        board[replayData.moves[i].index] = replayData.moves[i].player;
+      }
+      const el = document.getElementById('replay-board');
+      el.innerHTML = '';
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (board[i]) {
+          cell.textContent = board[i];
+          cell.classList.add(board[i].toLowerCase());
+        }
+        el.appendChild(cell);
+      }
+      document.getElementById('replay-move').textContent = replayIndex;
+    }
+
+    function replayStep(dir) {
+      if (!replayData?.moves) return;
+      replayIndex = Math.max(0, Math.min(replayData.moves.length, replayIndex + dir));
+      renderReplayBoard();
+    }
+
+    function toggleReplay() {
+      if (replayInterval) {
+        clearInterval(replayInterval);
+        replayInterval = null;
+        document.getElementById('replay-play-btn').textContent = '▶';
+      } else {
+        if (replayIndex >= (replayData?.moves?.length || 0)) replayIndex = 0;
+        document.getElementById('replay-play-btn').textContent = '⏸';
+        replayInterval = setInterval(() => {
+          if (replayIndex >= replayData.moves.length) {
+            clearInterval(replayInterval);
+            replayInterval = null;
+            document.getElementById('replay-play-btn').textContent = '▶';
+          } else {
+            replayIndex++;
+            renderReplayBoard();
+          }
+        }, 800);
+      }
+    }
+
+    function shareReplay() {
+      if (!replayData) return;
+      const url = window.location.origin + window.location.pathname + '?replay=' + replayData.gameId;
+      navigator.clipboard.writeText(url).then(() => alert('Replay link copied!')).catch(() => {
+        prompt('Copy this link:', url);
+      });
+    }
+
+    // Profile functionality
+    async function showProfile(playerName) {
+      showScreen('profile-screen');
+      document.getElementById('profile-name').textContent = playerName;
+      document.getElementById('profile-stats').innerHTML = '<div class="stat-card"><div class="value">...</div><div class="label">Loading</div></div>';
+      document.getElementById('profile-games').innerHTML = '';
+      
+      try {
+        const [statsRes, gamesRes] = await Promise.all([
+          fetch(API_URL + '/api/player?player=' + encodeURIComponent(playerName)),
+          fetch(API_URL + '/api/player/games?player=' + encodeURIComponent(playerName))
+        ]);
+        const stats = await statsRes.json();
+        const games = await gamesRes.json();
+        
+        document.getElementById('profile-stats').innerHTML = `
+          <div class="stat-card"><div class="value">${stats.wins}</div><div class="label">Wins</div></div>
+          <div class="stat-card"><div class="value">${stats.losses}</div><div class="label">Losses</div></div>
+          <div class="stat-card"><div class="value">${stats.ties}</div><div class="label">Ties</div></div>
+          <div class="stat-card"><div class="value">${stats.totalGames}</div><div class="label">Games</div></div>
+          <div class="stat-card"><div class="value">${stats.winRate?.toFixed(1) || 0}%</div><div class="label">Win Rate</div></div>
+          <div class="stat-card"><div class="value">${stats.winStreak || 0}</div><div class="label">Streak</div></div>
+        `;
+        
+        document.getElementById('profile-games').innerHTML = games.length ? games.map(g => `
+          <div class="game-item" onclick="loadReplay('${g.gameId}')">
+            <div class="info">
+              <div class="players">vs ${g.player1 === playerName ? g.player2 : g.player1}</div>
+              <div class="result">${g.isTie ? '🤝 Tie' : (g.winner === playerName ? '🏆 Won' : '❌ Lost')}</div>
+            </div>
+            <button onclick="event.stopPropagation();loadReplay('${g.gameId}')">▶</button>
+          </div>
+        `).join('') : '<p style="color: #888;">No online games yet</p>';
+      } catch (e) { console.error('Failed to load profile', e); }
+    }
+
+    // Handle URL parameters - replay takes priority over join
+    if (replayParam) {
+      loadReplay(replayParam);
+    } else if (joinCode) {
+      document.getElementById('join-code').value = joinCode;
+      selectMode('join');
     }
   </script>
 </body>

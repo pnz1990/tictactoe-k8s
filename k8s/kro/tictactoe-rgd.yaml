@@ -45,11 +45,22 @@ spec:
               attributeType: S
             - attributeName: timestamp
               attributeType: S
+            - attributeName: winner
+              attributeType: S
           keySchema:
             - attributeName: gameId
               keyType: HASH
             - attributeName: timestamp
               keyType: RANGE
+          globalSecondaryIndexes:
+            - indexName: winner-timestamp-index
+              keySchema:
+                - attributeName: winner
+                  keyType: HASH
+                - attributeName: timestamp
+                  keyType: RANGE
+              projection:
+                projectionType: ALL
           billingMode: PAY_PER_REQUEST
           tags:
             - key: Environment
@@ -79,7 +90,10 @@ spec:
                     "dynamodb:Query",
                     "dynamodb:Scan"
                   ],
-                  "Resource": "arn:aws:dynamodb:ap-northeast-2:*:table/tictactoe-games-${schema.spec.environment}"
+                  "Resource": [
+                    "arn:aws:dynamodb:ap-northeast-2:*:table/tictactoe-games-${schema.spec.environment}",
+                    "arn:aws:dynamodb:ap-northeast-2:*:table/tictactoe-games-${schema.spec.environment}/index/*"
+                  ]
                 }
               ]
             }
@@ -669,6 +683,10 @@ spec:
                   echo "Test 5: Online game get"
                   curl -sf "http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/game/get?id=$GAME_ID" || exit 1
                   echo " ✓ Online get OK"
+                  
+                  echo "Test 6: Leaderboard API"
+                  curl -sf http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/leaderboard || exit 1
+                  echo " ✓ Leaderboard OK"
                   
                   echo "All smoke tests passed!"
                 securityContext:

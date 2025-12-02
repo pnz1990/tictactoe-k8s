@@ -150,6 +150,30 @@ func testOnlineGameFlow(url string) error {
 	return nil
 }
 
+func testLeaderboardAPI(url string) error {
+	resp, err := http.Get(url + "/api/leaderboard")
+	if err != nil {
+		return fmt.Errorf("leaderboard request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("leaderboard status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func testStatsAPI(url string) error {
+	resp, err := http.Get(url + "/api/stats")
+	if err != nil {
+		return fmt.Errorf("stats request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("stats status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func runAllTests(frontendURL, backendURL, env string) {
 	log.Printf("Running synthetic tests for %s", env)
 	runTest("frontend_health", env, func() error { return testFrontendHealth(frontendURL) })
@@ -157,6 +181,8 @@ func runAllTests(frontendURL, backendURL, env string) {
 	runTest("local_game_recording", env, func() error { return testLocalGameRecording(backendURL) })
 	runTest("online_game_create", env, func() error { return testOnlineGameCreate(backendURL) })
 	runTest("online_game_flow", env, func() error { return testOnlineGameFlow(backendURL) })
+	runTest("leaderboard_api", env, func() error { return testLeaderboardAPI(backendURL) })
+	runTest("stats_api", env, func() error { return testStatsAPI(backendURL) })
 	testTimestamp.WithLabelValues(env).Set(float64(time.Now().Unix()))
 	log.Printf("Synthetic tests completed")
 }

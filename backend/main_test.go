@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -217,5 +218,75 @@ func TestAllWinningPatterns(t *testing.T) {
 		if got := testutil.ToFloat64(winsTotal.WithLabelValues("A", pattern, "local")); got != 1 {
 			t.Errorf("pattern %s: expected wins_total = 1, got %f", pattern, got)
 		}
+	}
+}
+
+func TestLeaderboardHandler_NoDB(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	leaderboardHandler(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503 when DB unavailable, got %d", w.Code)
+	}
+}
+
+func TestLeaderboardHandler_InvalidMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	leaderboardHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestStatsHandler_InvalidMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/stats", nil)
+	w := httptest.NewRecorder()
+	statsHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestRecentGamesHandler_InvalidMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/recent", nil)
+	w := httptest.NewRecorder()
+	recentGamesHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestPlayerStatsHandler_MissingPlayer(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/player", nil)
+	w := httptest.NewRecorder()
+	playerStatsHandler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestGetStringAttr(t *testing.T) {
+	// Test with missing key - returns empty string
+	item := make(map[string]types.AttributeValue)
+	result := getStringAttr(item, "missing")
+	if result != "" {
+		t.Errorf("expected empty string for missing key, got %s", result)
+	}
+}
+
+func TestEnsurePlayer(t *testing.T) {
+	stats := make(map[string]*PlayerStats)
+	ensurePlayer(stats, "Alice")
+	if stats["Alice"] == nil {
+		t.Error("expected player to be created")
+	}
+	if stats["Alice"].Player != "Alice" {
+		t.Errorf("expected player name Alice, got %s", stats["Alice"].Player)
 	}
 }
