@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"sync"
@@ -95,19 +96,20 @@ type Move struct {
 }
 
 type OnlineGame struct {
-	ID        string            `json:"id"`
-	Board     [9]string         `json:"board"`
-	Turn      string            `json:"turn"`
-	Player1   string            `json:"player1"`
-	Player2   string            `json:"player2"`
-	Status    string            `json:"status"` // waiting, playing, finished
-	Winner    string            `json:"winner,omitempty"`
-	Pattern   string            `json:"pattern,omitempty"`
-	CreatedAt time.Time         `json:"createdAt"`
-	StartedAt time.Time         `json:"startedAt"`
-	Moves     []Move            `json:"moves"`
-	Conns     []*websocket.Conn `json:"-"`
-	mu        sync.Mutex        `json:"-"`
+	ID          string            `json:"id"`
+	Board       [9]string         `json:"board"`
+	Turn        string            `json:"turn"`
+	FirstPlayer string            `json:"firstPlayer"`
+	Player1     string            `json:"player1"`
+	Player2     string            `json:"player2"`
+	Status      string            `json:"status"` // waiting, playing, finished
+	Winner      string            `json:"winner,omitempty"`
+	Pattern     string            `json:"pattern,omitempty"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	StartedAt   time.Time         `json:"startedAt"`
+	Moves       []Move            `json:"moves"`
+	Conns       []*websocket.Conn `json:"-"`
+	mu          sync.Mutex        `json:"-"`
 }
 
 type WSMessage struct {
@@ -314,13 +316,19 @@ func createGameHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "player1 required", http.StatusBadRequest)
 		return
 	}
+	// Coin flip: random first player
+	firstPlayer := "X"
+	if rand.Intn(2) == 1 {
+		firstPlayer = "O"
+	}
 	game := &OnlineGame{
-		ID:        uuid.New().String()[:8],
-		Board:     [9]string{},
-		Turn:      "X",
-		Player1:   req.Player1,
-		Status:    "waiting",
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String()[:8],
+		Board:       [9]string{},
+		Turn:        firstPlayer,
+		FirstPlayer: firstPlayer,
+		Player1:     req.Player1,
+		Status:      "waiting",
+		CreatedAt:   time.Now(),
 	}
 	gamesMu.Lock()
 	games[game.ID] = game
@@ -328,7 +336,7 @@ func createGameHandler(w http.ResponseWriter, r *http.Request) {
 	onlineGamesCreated.Inc()
 	onlineGamesActive.Inc()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"gameId": game.ID})
+	json.NewEncoder(w).Encode(map[string]string{"gameId": game.ID, "firstPlayer": game.FirstPlayer})
 }
 
 func joinGameHandler(w http.ResponseWriter, r *http.Request) {
@@ -421,7 +429,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (g *OnlineGame) toJSON() map[string]interface{} {
 	return map[string]interface{}{
-		"id": g.ID, "board": g.Board, "turn": g.Turn,
+		"id": g.ID, "board": g.Board, "turn": g.Turn, "firstPlayer": g.FirstPlayer,
 		"player1": g.Player1, "player2": g.Player2,
 		"status": g.Status, "winner": g.Winner, "pattern": g.Pattern,
 	}

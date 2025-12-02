@@ -99,7 +99,7 @@
   <div class="container">
     <!-- Mode Selection -->
     <div id="mode-select" class="mode-select">
-      <h1>⚡ Tic Tac Toe v3.1 ⚡</h1>
+      <h1>⚡ Tic Tac Toe v3.2 ⚡</h1>
       <p style="margin-bottom: 20px; color: #e94560;">Choose game mode</p>
       <button class="mode-btn" onclick="selectMode('local')">🎮 Local Game<br><small>Two players, one device</small></button>
       <button class="mode-btn" onclick="selectMode('create')">🌐 Create Online Game<br><small>Get a link to share</small></button>
@@ -233,7 +233,7 @@
 
     <!-- Game Board -->
     <div id="game" class="hidden">
-      <h1 id="title">⚡ Tic Tac Toe v3.1 ⚡</h1>
+      <h1 id="title">⚡ Tic Tac Toe v3.2 ⚡</h1>
       <div class="players">
         <span class="x-player">X: <span id="p1display"></span></span>
         <span class="o-player">O: <span id="p2display"></span></span>
@@ -338,6 +338,28 @@
       }, 2200);
     }
 
+    function showOnlineCoinFlip() {
+      showScreen('coin-flip');
+      const coin = document.getElementById('coin');
+      const result = document.getElementById('coin-result');
+      coin.classList.remove('flipping');
+      result.classList.remove('show');
+      result.textContent = '';
+      
+      const xFirst = firstPlayer === 'X';
+      const rotations = xFirst ? 720 : 900;
+      coin.style.setProperty('--flip-end', rotations + 'deg');
+      
+      setTimeout(() => coin.classList.add('flipping'), 100);
+      
+      setTimeout(() => {
+        const winner = xFirst ? player1 : player2;
+        result.innerHTML = '<span style="color:' + (xFirst ? '#00fff5' : '#e94560') + '">' + winner + '</span> goes first!';
+        result.classList.add('show');
+        setTimeout(() => startGame(), 1500);
+      }, 2200);
+    }
+
     // AI Logic
     function getAIMove() {
       const empty = board.map((c, i) => c === '' ? i : -1).filter(i => i >= 0);
@@ -417,6 +439,7 @@
         gameId = data.gameId;
         player1 = name;
         myRole = 'X';
+        firstPlayer = data.firstPlayer || 'X';
         const link = window.location.origin + window.location.pathname + '?game=' + gameId;
         document.getElementById('game-link').value = link;
         document.getElementById('game-code').textContent = gameId;
@@ -441,9 +464,9 @@
         player2 = name;
         myRole = 'O';
         gameMode = 'online';
-        firstPlayer = 'X';
+        firstPlayer = data.firstPlayer || 'X';
         connectWebSocket();
-        startGame();
+        showOnlineCoinFlip();
       } catch (e) { alert('Failed to join game'); }
     }
 
@@ -455,8 +478,8 @@
         else if (msg.type === 'game_start') {
           player2 = msg.payload.player2;
           gameMode = 'online';
-          firstPlayer = 'X';
-          startGame();
+          firstPlayer = msg.payload.firstPlayer || 'X';
+          showOnlineCoinFlip();
         }
       };
       ws.onclose = () => { if (gameMode === 'online' && !over) console.log('Connection lost'); };

@@ -85,6 +85,7 @@ This project uses the following AWS managed services:
 - **Player Names**: Enter player names before starting the game
 - **Game Recording**: All game results sent to backend API
 - **AI Opponent**: Single-player mode with three difficulty levels
+- **Coin Flip**: Animated coin flip determines who goes first (local & online)
 - **Lightweight**: ~3KB total size
 
 ### AI Opponent (Single Player)

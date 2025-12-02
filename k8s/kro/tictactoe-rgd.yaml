@@ -676,7 +676,7 @@ spec:
                   
                   echo "Test 4: Online game create"
                   RESP=$(curl -sf -X POST http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/game/create -d '{"player1":"SmokeTest"}' -H 'Content-Type: application/json')
-                  GAME_ID=$(echo "$RESP" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+                  GAME_ID=$(echo "$RESP" | grep -o '"gameId":"[^"]*"' | cut -d'"' -f4)
                   [ -n "$GAME_ID" ] || exit 1
                   echo " ✓ Online create OK"
                   
