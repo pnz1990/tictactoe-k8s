@@ -4,7 +4,7 @@ metadata:
   name: tictactoe-staging
 spec:
   environment: staging
-  imageTag: "e86c067"
+  imageTag: "5f2085f"
   replicas: 2
   backendReplicas: 2
   cpuRequest: "50m"
