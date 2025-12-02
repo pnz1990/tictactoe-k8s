@@ -39,6 +39,28 @@ This project uses the following AWS managed services:
 
 **ArgoCD Auto-Sync:** Changes are automatically picked up within ~3 minutes (default polling interval). No manual sync required.
 
+## Cost Tracking (OpenCost)
+
+OpenCost provides Kubernetes cost monitoring, deployed via ArgoCD:
+
+| Component | Purpose |
+|-----------|---------|
+| OpenCost | Cost analysis engine + UI |
+| Prometheus Server | Metrics collection for cost calculation |
+| kube-state-metrics | Kubernetes resource state metrics |
+| node-exporter | Node-level metrics |
+
+**Access the UI:**
+```bash
+kubectl port-forward -n opencost svc/opencost 9090:9090
+# Open http://localhost:9090
+```
+
+**AWS Cloud Costs:**
+- Cost and Usage Report (CUR) configured to S3 bucket `tictactoe-cost-reports-569190534191`
+- DynamoDB costs per environment will appear after CUR data populates (24-48 hours)
+- IAM role `opencost-amp-reader` with Athena/S3 access for cloud cost queries
+
 ## Environment URLs
 
 | Environment | URL |
