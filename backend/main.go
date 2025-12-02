@@ -89,17 +89,17 @@ type GameResult struct {
 }
 
 type OnlineGame struct {
-	ID        string          `json:"id"`
-	Board     [9]string       `json:"board"`
-	Turn      string          `json:"turn"`
-	Player1   string          `json:"player1"`
-	Player2   string          `json:"player2"`
-	Status    string          `json:"status"` // waiting, playing, finished
-	Winner    string          `json:"winner,omitempty"`
-	Pattern   string          `json:"pattern,omitempty"`
-	CreatedAt time.Time       `json:"createdAt"`
+	ID        string            `json:"id"`
+	Board     [9]string         `json:"board"`
+	Turn      string            `json:"turn"`
+	Player1   string            `json:"player1"`
+	Player2   string            `json:"player2"`
+	Status    string            `json:"status"` // waiting, playing, finished
+	Winner    string            `json:"winner,omitempty"`
+	Pattern   string            `json:"pattern,omitempty"`
+	CreatedAt time.Time         `json:"createdAt"`
 	Conns     []*websocket.Conn `json:"-"`
-	mu        sync.Mutex      `json:"-"`
+	mu        sync.Mutex        `json:"-"`
 }
 
 type WSMessage struct {
