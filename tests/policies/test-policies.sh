@@ -94,6 +94,53 @@ else
   FAILED=1
 fi
 
+# Test 6: ArgoCD PostSync Hook
+echo ""
+echo "--- Test 6: ArgoCD PostSync Hook ---"
+if grep -q "argocd.argoproj.io/hook: PostSync" "$RGD_FILE"; then
+  echo "PASS: PostSync hook defined"
+  
+  if grep -q "argocd.argoproj.io/hook-delete-policy:" "$RGD_FILE"; then
+    echo "PASS: Hook delete policy configured"
+  else
+    echo "WARN: Hook delete policy not set"
+  fi
+  
+  if grep -q "post-sync-smoke-test" "$RGD_FILE"; then
+    echo "PASS: Smoke test job defined"
+  else
+    echo "FAIL: Smoke test job missing"
+    FAILED=1
+  fi
+else
+  echo "FAIL: PostSync hook not configured"
+  FAILED=1
+fi
+
+# Test 7: Grafana Dashboards
+echo ""
+echo "--- Test 7: Grafana Dashboards ---"
+if grep -q "GrafanaDashboard" "$RGD_FILE"; then
+  echo "PASS: Grafana dashboards defined"
+  
+  if grep -q "tictactoe-ops" "$RGD_FILE"; then
+    echo "PASS: Ops dashboard configured"
+  else
+    echo "FAIL: Ops dashboard missing"
+    FAILED=1
+  fi
+  
+  if grep -q "tictactoe-business" "$RGD_FILE"; then
+    echo "PASS: Business dashboard configured"
+  else
+    echo "FAIL: Business dashboard missing"
+    FAILED=1
+  fi
+else
+  echo "FAIL: Grafana dashboards not defined"
+  FAILED=1
+fi
+
 echo ""
 echo "=== Policy Tests Complete ==="
 if [ $FAILED -eq 0 ]; then

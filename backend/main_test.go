@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -16,7 +16,7 @@ func resetMetrics() {
 	gamesTotal.Reset()
 	winsTotal.Reset()
 	playerGamesTotal.Reset()
-	tiesTotal = prometheus.NewCounter(prometheus.CounterOpts{Name: "tictactoe_ties_total", Help: "Total tied games"})
+	tiesTotal.Reset()
 	winStreakGauge.Reset()
 	dynamoDBOps.Reset()
 	httpRequestsTotal.Reset()
@@ -33,6 +33,7 @@ func TestGameHandler_Win(t *testing.T) {
 		Winner:  "Alice",
 		Pattern: "row1",
 		IsTie:   false,
+		Mode:    "local",
 	}
 	body, _ := json.Marshal(game)
 
@@ -47,17 +48,17 @@ func TestGameHandler_Win(t *testing.T) {
 	}
 
 	// Verify metrics
-	if got := testutil.ToFloat64(gamesTotal.WithLabelValues("win")); got != 1 {
-		t.Errorf("expected games_total{result=win} = 1, got %f", got)
+	if got := testutil.ToFloat64(gamesTotal.WithLabelValues("win", "local")); got != 1 {
+		t.Errorf("expected games_total{result=win,mode=local} = 1, got %f", got)
 	}
-	if got := testutil.ToFloat64(winsTotal.WithLabelValues("Alice", "row1")); got != 1 {
-		t.Errorf("expected wins_total{player=Alice,pattern=row1} = 1, got %f", got)
+	if got := testutil.ToFloat64(winsTotal.WithLabelValues("Alice", "row1", "local")); got != 1 {
+		t.Errorf("expected wins_total{player=Alice,pattern=row1,mode=local} = 1, got %f", got)
 	}
-	if got := testutil.ToFloat64(playerGamesTotal.WithLabelValues("Alice")); got != 1 {
-		t.Errorf("expected player_games_total{player=Alice} = 1, got %f", got)
+	if got := testutil.ToFloat64(playerGamesTotal.WithLabelValues("Alice", "local")); got != 1 {
+		t.Errorf("expected player_games_total{player=Alice,mode=local} = 1, got %f", got)
 	}
-	if got := testutil.ToFloat64(playerGamesTotal.WithLabelValues("Bob")); got != 1 {
-		t.Errorf("expected player_games_total{player=Bob} = 1, got %f", got)
+	if got := testutil.ToFloat64(playerGamesTotal.WithLabelValues("Bob", "local")); got != 1 {
+		t.Errorf("expected player_games_total{player=Bob,mode=local} = 1, got %f", got)
 	}
 }
 
@@ -68,6 +69,7 @@ func TestGameHandler_Tie(t *testing.T) {
 		Player1: "Alice",
 		Player2: "Bob",
 		IsTie:   true,
+		Mode:    "local",
 	}
 	body, _ := json.Marshal(game)
 
@@ -81,8 +83,11 @@ func TestGameHandler_Tie(t *testing.T) {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
 
-	if got := testutil.ToFloat64(gamesTotal.WithLabelValues("tie")); got != 1 {
-		t.Errorf("expected games_total{result=tie} = 1, got %f", got)
+	if got := testutil.ToFloat64(gamesTotal.WithLabelValues("tie", "local")); got != 1 {
+		t.Errorf("expected games_total{result=tie,mode=local} = 1, got %f", got)
+	}
+	if got := testutil.ToFloat64(tiesTotal.WithLabelValues("local")); got != 1 {
+		t.Errorf("expected ties_total{mode=local} = 1, got %f", got)
 	}
 }
 
@@ -91,7 +96,7 @@ func TestGameHandler_WinStreak(t *testing.T) {
 
 	// Alice wins 3 times
 	for i := 0; i < 3; i++ {
-		game := GameResult{Player1: "Alice", Player2: "Bob", Winner: "Alice", Pattern: "row1", IsTie: false}
+		game := GameResult{Player1: "Alice", Player2: "Bob", Winner: "Alice", Pattern: "row1", IsTie: false, Mode: "local"}
 		body, _ := json.Marshal(game)
 		req := httptest.NewRequest(http.MethodPost, "/api/game", bytes.NewReader(body))
 		w := httptest.NewRecorder()
@@ -110,13 +115,13 @@ func TestGameHandler_StreakResetOnLoss(t *testing.T) {
 	resetMetrics()
 
 	// Alice wins
-	game := GameResult{Player1: "Alice", Player2: "Bob", Winner: "Alice", Pattern: "row1", IsTie: false}
+	game := GameResult{Player1: "Alice", Player2: "Bob", Winner: "Alice", Pattern: "row1", IsTie: false, Mode: "local"}
 	body, _ := json.Marshal(game)
 	req := httptest.NewRequest(http.MethodPost, "/api/game", bytes.NewReader(body))
 	gameHandler(httptest.NewRecorder(), req)
 
 	// Bob wins - Alice streak resets
-	game = GameResult{Player1: "Alice", Player2: "Bob", Winner: "Bob", Pattern: "col1", IsTie: false}
+	game = GameResult{Player1: "Alice", Player2: "Bob", Winner: "Bob", Pattern: "col1", IsTie: false, Mode: "local"}
 	body, _ = json.Marshal(game)
 	req = httptest.NewRequest(http.MethodPost, "/api/game", bytes.NewReader(body))
 	gameHandler(httptest.NewRecorder(), req)
@@ -201,7 +206,7 @@ func TestAllWinningPatterns(t *testing.T) {
 
 	for _, pattern := range patterns {
 		resetMetrics()
-		game := GameResult{Player1: "A", Player2: "B", Winner: "A", Pattern: pattern, IsTie: false}
+		game := GameResult{Player1: "A", Player2: "B", Winner: "A", Pattern: pattern, IsTie: false, Mode: "local"}
 		body, _ := json.Marshal(game)
 		req := httptest.NewRequest(http.MethodPost, "/api/game", bytes.NewReader(body))
 		w := httptest.NewRecorder()
@@ -210,8 +215,78 @@ func TestAllWinningPatterns(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("pattern %s: expected status 200, got %d", pattern, w.Code)
 		}
-		if got := testutil.ToFloat64(winsTotal.WithLabelValues("A", pattern)); got != 1 {
+		if got := testutil.ToFloat64(winsTotal.WithLabelValues("A", pattern, "local")); got != 1 {
 			t.Errorf("pattern %s: expected wins_total = 1, got %f", pattern, got)
 		}
+	}
+}
+
+func TestLeaderboardHandler_NoDB(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	leaderboardHandler(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503 when DB unavailable, got %d", w.Code)
+	}
+}
+
+func TestLeaderboardHandler_InvalidMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	leaderboardHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestStatsHandler_InvalidMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/stats", nil)
+	w := httptest.NewRecorder()
+	statsHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestRecentGamesHandler_InvalidMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/recent", nil)
+	w := httptest.NewRecorder()
+	recentGamesHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405, got %d", w.Code)
+	}
+}
+
+func TestPlayerStatsHandler_MissingPlayer(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/player", nil)
+	w := httptest.NewRecorder()
+	playerStatsHandler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestGetStringAttr(t *testing.T) {
+	// Test with missing key - returns empty string
+	item := make(map[string]types.AttributeValue)
+	result := getStringAttr(item, "missing")
+	if result != "" {
+		t.Errorf("expected empty string for missing key, got %s", result)
+	}
+}
+
+func TestEnsurePlayer(t *testing.T) {
+	stats := make(map[string]*PlayerStats)
+	ensurePlayer(stats, "Alice")
+	if stats["Alice"] == nil {
+		t.Error("expected player to be created")
+	}
+	if stats["Alice"].Player != "Alice" {
+		t.Errorf("expected player name Alice, got %s", stats["Alice"].Player)
 	}
 }

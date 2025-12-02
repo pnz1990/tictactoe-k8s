@@ -16,24 +16,15 @@ import (
 
 var (
 	testResult = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "synthetic_test_success",
-			Help: "Synthetic test result (1=success, 0=failure)",
-		},
+		prometheus.GaugeOpts{Name: "synthetic_test_success", Help: "Synthetic test result (1=success, 0=failure)"},
 		[]string{"test", "environment"},
 	)
 	testDuration = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "synthetic_test_duration_seconds",
-			Help: "Synthetic test duration in seconds",
-		},
+		prometheus.GaugeOpts{Name: "synthetic_test_duration_seconds", Help: "Synthetic test duration in seconds"},
 		[]string{"test", "environment"},
 	)
 	testTimestamp = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "synthetic_test_timestamp",
-			Help: "Synthetic test last run timestamp",
-		},
+		prometheus.GaugeOpts{Name: "synthetic_test_timestamp", Help: "Synthetic test last run timestamp"},
 		[]string{"environment"},
 	)
 )
@@ -48,13 +39,13 @@ type GameResult struct {
 	Winner  string `json:"winner"`
 	Pattern string `json:"pattern"`
 	IsTie   bool   `json:"isTie"`
+	Mode    string `json:"mode"`
 }
 
 func runTest(name string, env string, testFunc func() error) {
 	start := time.Now()
 	err := testFunc()
 	duration := time.Since(start).Seconds()
-
 	if err != nil {
 		log.Printf("❌ %s: FAILED - %v (%.2fs)", name, err, duration)
 		testResult.WithLabelValues(name, env).Set(0)
@@ -65,63 +56,121 @@ func runTest(name string, env string, testFunc func() error) {
 	testDuration.WithLabelValues(name, env).Set(duration)
 }
 
-func testFrontendHealth(albURL string) error {
-	resp, err := http.Get(albURL + "/healthz")
+func testFrontendHealth(url string) error {
+	resp, err := http.Get(url + "/healthz")
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 	return nil
 }
 
-func testBackendHealth(albURL string) error {
-	resp, err := http.Get(albURL + "/api/game")
+func testBackendHealth(url string) error {
+	resp, err := http.Get(url + "/api/game")
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-
-	// Backend returns 405 for GET on /api/game which means it's alive
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		return fmt.Errorf("unexpected status: %d (expected 405)", resp.StatusCode)
 	}
 	return nil
 }
 
-func testGameRecording(albURL string) error {
-	game := GameResult{
-		Player1: "SyntheticA",
-		Player2: "SyntheticB",
-		Winner:  "SyntheticA",
-		Pattern: "row1",
-		IsTie:   false,
-	}
-
+func testLocalGameRecording(url string) error {
+	game := GameResult{Player1: "SyntheticA", Player2: "SyntheticB", Winner: "SyntheticA", Pattern: "row1", Mode: "local"}
 	body, _ := json.Marshal(game)
-	resp, err := http.Post(albURL+"/api/game", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(url+"/api/game", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected status: %d, body: %s", resp.StatusCode, string(respBody))
 	}
+	return nil
+}
 
+func testOnlineGameCreate(url string) error {
+	body, _ := json.Marshal(map[string]string{"player1": "SyntheticOnline"})
+	resp, err := http.Post(url+"/api/game/create", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
 	var result map[string]string
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+		return fmt.Errorf("failed to decode: %w", err)
 	}
-
-	if result["status"] != "recorded" {
-		return fmt.Errorf("unexpected response: %v", result)
+	if result["gameId"] == "" {
+		return fmt.Errorf("no gameId returned")
 	}
+	return nil
+}
 
+func testOnlineGameFlow(url string) error {
+	// Create game
+	body, _ := json.Marshal(map[string]string{"player1": "SyntheticP1"})
+	resp, err := http.Post(url+"/api/game/create", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create failed: %w", err)
+	}
+	defer resp.Body.Close()
+	var createRes map[string]string
+	json.NewDecoder(resp.Body).Decode(&createRes)
+	gameId := createRes["gameId"]
+	
+	// Join game
+	joinBody, _ := json.Marshal(map[string]string{"gameId": gameId, "player2": "SyntheticP2"})
+	resp2, err := http.Post(url+"/api/game/join", "application/json", bytes.NewReader(joinBody))
+	if err != nil {
+		return fmt.Errorf("join failed: %w", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		return fmt.Errorf("join status: %d", resp2.StatusCode)
+	}
+	
+	// Get game state
+	resp3, err := http.Get(url + "/api/game/get?id=" + gameId)
+	if err != nil {
+		return fmt.Errorf("get failed: %w", err)
+	}
+	defer resp3.Body.Close()
+	if resp3.StatusCode != http.StatusOK {
+		return fmt.Errorf("get status: %d", resp3.StatusCode)
+	}
+	return nil
+}
+
+func testLeaderboardAPI(url string) error {
+	resp, err := http.Get(url + "/api/leaderboard")
+	if err != nil {
+		return fmt.Errorf("leaderboard request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("leaderboard status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func testStatsAPI(url string) error {
+	resp, err := http.Get(url + "/api/stats")
+	if err != nil {
+		return fmt.Errorf("stats request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("stats status: %d", resp.StatusCode)
+	}
 	return nil
 }
 
@@ -129,7 +178,11 @@ func runAllTests(frontendURL, backendURL, env string) {
 	log.Printf("Running synthetic tests for %s", env)
 	runTest("frontend_health", env, func() error { return testFrontendHealth(frontendURL) })
 	runTest("backend_health", env, func() error { return testBackendHealth(backendURL) })
-	runTest("game_recording", env, func() error { return testGameRecording(backendURL) })
+	runTest("local_game_recording", env, func() error { return testLocalGameRecording(backendURL) })
+	runTest("online_game_create", env, func() error { return testOnlineGameCreate(backendURL) })
+	runTest("online_game_flow", env, func() error { return testOnlineGameFlow(backendURL) })
+	runTest("leaderboard_api", env, func() error { return testLeaderboardAPI(backendURL) })
+	runTest("stats_api", env, func() error { return testStatsAPI(backendURL) })
 	testTimestamp.WithLabelValues(env).Set(float64(time.Now().Unix()))
 	log.Printf("Synthetic tests completed")
 }
@@ -142,36 +195,20 @@ func main() {
 	if interval == "" {
 		interval = "60s"
 	}
-
 	if frontendURL == "" || backendURL == "" || env == "" {
 		log.Fatal("FRONTEND_URL, BACKEND_URL and ENVIRONMENT must be set")
 	}
-
-	testInterval, err := time.ParseDuration(interval)
-	if err != nil {
+	testInterval, _ := time.ParseDuration(interval)
+	if testInterval == 0 {
 		testInterval = 60 * time.Second
 	}
-
-	log.Printf("Starting synthetic monitor for %s environment", env)
-	log.Printf("Frontend URL: %s", frontendURL)
-	log.Printf("Backend URL: %s", backendURL)
-	log.Printf("Test interval: %s", testInterval)
-
-	// Run tests immediately
+	log.Printf("Starting synthetic monitor for %s", env)
 	runAllTests(frontendURL, backendURL, env)
-
-	// Start metrics server
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ok"))
-		})
-		log.Printf("Metrics server starting on :9091")
+		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 		log.Fatal(http.ListenAndServe(":9091", nil))
 	}()
-
-	// Run tests periodically
 	ticker := time.NewTicker(testInterval)
 	for range ticker.C {
 		runAllTests(frontendURL, backendURL, env)

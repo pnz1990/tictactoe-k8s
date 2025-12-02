@@ -84,7 +84,20 @@ This project uses the following AWS managed services:
 - **Tic Tac Toe Game**: Browser-based two-player game with neon cyberpunk styling
 - **Player Names**: Enter player names before starting the game
 - **Game Recording**: All game results sent to backend API
+- **AI Opponent**: Single-player mode with three difficulty levels
 - **Lightweight**: ~3KB total size
+
+### AI Opponent (Single Player)
+
+Play against the computer with three difficulty levels:
+
+| Difficulty | Algorithm | Description |
+|------------|-----------|-------------|
+| **Easy** | Random | Picks any valid empty cell randomly |
+| **Medium** | 50/50 | 50% chance optimal move (Minimax), 50% random |
+| **Hard** | Minimax | Perfect play - AI never loses, only wins or ties |
+
+The Hard difficulty uses the Minimax algorithm with depth scoring to prefer faster wins and slower losses.
 
 ### CI/CD Pipeline (GitHub Actions)
 
@@ -114,7 +127,8 @@ This project uses the following AWS managed services:
 | **DynamoDB Table (ACK)** | Game persistence table created via AWS Controllers for Kubernetes |
 | **IAM Role & Policy (ACK)** | Per-environment IAM resources for DynamoDB access |
 | **EKS Pod Identity** | Secure pod-to-AWS authentication without static credentials |
-| **Synthetic Monitoring** | CronJob-based health checks with Prometheus metrics |
+| **Synthetic Monitoring** | Continuous health checks with Prometheus metrics |
+| **ArgoCD PostSync Hook** | Smoke tests run after each deployment, blocks bad deploys |
 | **Resource Limits** | CPU/memory requests and limits defined |
 | **Health Probes** | Liveness and readiness probes configured |
 | **Security Context** | Non-root, read-only filesystem, dropped capabilities |
@@ -550,20 +564,81 @@ The backend exposes the following Prometheus metrics:
 
 | Metric | Labels | Description |
 |--------|--------|-------------|
-| `tictactoe_games_total` | result | Total games (win/tie) |
-| `tictactoe_wins_total` | player, pattern | Wins by player and pattern |
-| `tictactoe_player_games_total` | player | Games per player |
-| `tictactoe_ties_total` | - | Total tied games |
+| `tictactoe_games_total` | result, mode | Total games (win/tie) by mode |
+| `tictactoe_wins_total` | player, pattern, mode | Wins by player, pattern, and mode |
+| `tictactoe_player_games_total` | player, mode | Games per player by mode |
+| `tictactoe_ties_total` | mode | Total tied games by mode |
 | `tictactoe_current_win_streak` | player | Current win streak |
 | `tictactoe_dynamodb_operations_total` | operation, status | DynamoDB operations (PutItem success/error) |
+| `tictactoe_online_games_active` | - | Currently active online games |
+| `tictactoe_online_games_created_total` | - | Total online games created |
+| `tictactoe_websocket_connections_active` | - | Active WebSocket connections |
+| `tictactoe_websocket_messages_total` | type, direction | WebSocket messages (in/out) |
+
+**Game Modes**: `local` (same device), `online` (multiplayer via WebSocket)
 
 **Winning Patterns**: row1, row2, row3, col1, col2, col3, diag1, diag2
+
+### Online Multiplayer (v3.0)
+
+The application supports real-time online multiplayer via WebSocket:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/game/create` | POST | Create new online game, returns game ID |
+| `/api/game/join` | POST | Join existing game by ID |
+| `/api/game/get` | GET | Get game state by ID |
+| `/api/game/ws` | WS | WebSocket for real-time game updates |
+
+**Features:**
+- Create game and share link/code with opponent
+- Real-time board sync via WebSocket
+- Turn-based play enforcement
+- Game state persisted to DynamoDB on completion
+
+### Leaderboard API (v3.1)
+
+REST API for player statistics and game history, backed by DynamoDB:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/leaderboard` | GET | Top 20 players by wins with W/L/T stats |
+| `/api/stats` | GET | Global stats: total games, wins, ties, patterns |
+| `/api/recent` | GET | Last 20 games played |
+| `/api/player?player=NAME` | GET | Individual player statistics |
+
+**DynamoDB Schema:**
+- Table: `tictactoe-games-{env}`
+- Primary Key: `gameId` (HASH), `timestamp` (RANGE)
+- GSI: `winner-timestamp-index` for leaderboard queries
 
 ### GitOps
 - [x] ArgoCD auto-sync with self-healing
 - [x] Pruning enabled
 - [x] Branch-based promotion (main → staging → prod)
 - [x] Grafana Operator managing AMG dashboards
+- [x] PostSync hooks for deployment validation
+
+### Synthetic Monitoring & Smoke Tests
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| **Synthetic Monitor** | Deployment | Continuous health checks every 5 minutes |
+| **PostSync Smoke Test** | ArgoCD Hook | Validates deployment after each sync |
+
+**Synthetic Monitor Metrics:**
+- `synthetic_test_success{test, environment}` - Test result (1=pass, 0=fail)
+- `synthetic_test_duration_seconds{test, environment}` - Test duration
+
+**PostSync Smoke Test:**
+- Runs automatically after ArgoCD sync
+- Tests frontend health, backend health, API endpoints, and online game creation
+- Failed tests mark sync as "Degraded"
+- Job auto-deletes on success
+
+**Business Dashboard Filtering:**
+- Synthetic test results (player names starting with "Synthetic") are filtered from business metrics
+- Ops dashboard shows all data including synthetic tests
 
 ## Related Repositories
 
