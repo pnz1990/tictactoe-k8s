@@ -24,6 +24,11 @@ spec:
               port: 80
           ui:
             enabled: true
+          cloudCost:
+            enabled: true
+            monthToDateInterval: 6
+            refreshRateHours: 6
+            queryWindowDays: 7
         serviceAccount:
           create: true
           name: opencost
