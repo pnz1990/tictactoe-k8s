@@ -328,9 +328,10 @@
 
     function sendReaction(emoji) {
       document.getElementById('reaction-picker').classList.remove('show');
-      showFloatingReaction(emoji);
       if (gameMode === 'online' && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({type: 'reaction', payload: {emoji}}));
+      } else {
+        showFloatingReaction(emoji);
       }
     }
 
