@@ -479,7 +479,7 @@ spec:
                 {"id": 4, "title": "Backend - Requests/sec", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (endpoint)", "legendFormat": "{{endpoint}}"}]},
                 {"id": 5, "title": "Backend - Request Duration (p99)", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 6}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (le, endpoint))", "legendFormat": "{{endpoint}}"}], "fieldConfig": {"defaults": {"unit": "s"}}},
                 {"id": 6, "title": "Backend - In-Flight Requests", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 8, "y": 6}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "http_requests_in_flight{namespace=\"tictactoe-${schema.spec.environment}\"}"}]},
-                {"id": 7, "title": "Backend - Error Rate", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 12, "y": 6}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{namespace=\"tictactoe-${schema.spec.environment}\", status!=\"OK\"}[5m])) / sum(rate(http_requests_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(0)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}}},
+                {"id": 7, "title": "Backend - Error Rate", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 12, "y": 6}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(http_requests_total{namespace=\"tictactoe-${schema.spec.environment}\", status!~\"OK|Method Not Allowed\"}[5m])) / sum(rate(http_requests_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(0)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}}},
                 {"id": 8, "title": "Backend - Go Goroutines", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 16, "y": 6}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "go_goroutines{namespace=\"tictactoe-${schema.spec.environment}\"}"}]},
                 {"id": 9, "title": "Backend - Memory Usage", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 12}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "go_memstats_heap_inuse_bytes{namespace=\"tictactoe-${schema.spec.environment}\"}", "legendFormat": "Heap In Use"}, {"refId": "B", "expr": "go_memstats_heap_alloc_bytes{namespace=\"tictactoe-${schema.spec.environment}\"}", "legendFormat": "Heap Alloc"}], "fieldConfig": {"defaults": {"unit": "bytes"}}},
                 {"id": 10, "title": "Backend - GC Duration", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 8, "y": 12}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "rate(go_gc_duration_seconds_sum{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])"}], "fieldConfig": {"defaults": {"unit": "s"}}},
@@ -488,10 +488,16 @@ spec:
                 {"id": 13, "title": "ALB - Response Time (p99)", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 8, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "TargetResponseTime", "statistics": ["p99"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}], "fieldConfig": {"defaults": {"unit": "s"}}},
                 {"id": 14, "title": "ALB - 5xx Errors", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 16, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HTTPCode_ELB_5XX_Count", "statistics": ["Sum"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}], "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}},
                 {"id": 15, "title": "ALB - Healthy Hosts", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 20, "y": 18}, "datasource": {"type": "cloudwatch", "uid": "cf58p96fftm2oc"}, "targets": [{"refId": "A", "region": "ap-northeast-2", "namespace": "AWS/ApplicationELB", "metricName": "HealthyHostCount", "statistics": ["Average"], "dimensions": {"LoadBalancer": "${schema.spec.albId}"}, "matchExact": true}]},
-                {"id": 16, "title": "DynamoDB - Operations/sec", "type": "timeseries", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (operation, status)", "legendFormat": "{{operation}} - {{status}}"}]},
-                {"id": 17, "title": "DynamoDB - Success Rate", "type": "stat", "gridPos": {"h": 6, "w": 4, "x": 8, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\", status=\"success\"}[5m])) / sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(100)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}}}},
+                {"id": 16, "title": "DynamoDB - Operations/sec", "type": "timeseries", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (operation, status)", "legendFormat": "{{operation}}-{{status}}"}]},
+                {"id": 17, "title": "DynamoDB - Success Rate", "type": "stat", "gridPos": {"h": 6, "w": 6, "x": 6, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\", status=\"success\"}[5m])) / sum(rate(tictactoe_dynamodb_operations_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) * 100 or vector(100)"}], "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}}}},
                 {"id": 18, "title": "Synthetic Tests - Status", "type": "stat", "gridPos": {"h": 6, "w": 6, "x": 12, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "synthetic_test_success{environment=\"${schema.spec.environment}\"}", "legendFormat": "{{test}}"}], "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"1": {"text": "PASS", "color": "green"}, "0": {"text": "FAIL", "color": "red"}}}]}}},
-                {"id": 19, "title": "Synthetic Tests - Duration", "type": "timeseries", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "synthetic_test_duration_seconds{environment=\"${schema.spec.environment}\"}", "legendFormat": "{{test}}"}], "fieldConfig": {"defaults": {"unit": "s"}}}
+                {"id": 19, "title": "Synthetic Tests - Duration", "type": "timeseries", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 24}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "synthetic_test_duration_seconds{environment=\"${schema.spec.environment}\"}", "legendFormat": "{{test}}"}], "fieldConfig": {"defaults": {"unit": "s"}}},
+                {"id": 20, "title": "PostSync Smoke Test - Status", "type": "stat", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 30}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "kube_job_status_succeeded{namespace=\"tictactoe-${schema.spec.environment}\", job_name=\"post-sync-smoke-test\"}", "legendFormat": "Success"}, {"refId": "B", "expr": "kube_job_status_failed{namespace=\"tictactoe-${schema.spec.environment}\", job_name=\"post-sync-smoke-test\"}", "legendFormat": "Failed"}], "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"1": {"text": "PASS", "color": "green"}, "0": {"text": "PENDING", "color": "yellow"}}}]}}},
+                {"id": 21, "title": "PostSync Smoke Test - History", "type": "timeseries", "gridPos": {"h": 6, "w": 6, "x": 6, "y": 30}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "changes(kube_job_status_succeeded{namespace=\"tictactoe-${schema.spec.environment}\", job_name=\"post-sync-smoke-test\"}[1h])", "legendFormat": "Successful"}, {"refId": "B", "expr": "changes(kube_job_status_failed{namespace=\"tictactoe-${schema.spec.environment}\", job_name=\"post-sync-smoke-test\"}[1h])", "legendFormat": "Failed"}]},
+                {"id": 22, "title": "Online Games - Active", "type": "stat", "gridPos": {"h": 6, "w": 6, "x": 12, "y": 30}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "tictactoe_online_games_active{namespace=\"tictactoe-${schema.spec.environment}\"} or vector(0)"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "blue", "value": null}]}}}},
+                {"id": 23, "title": "WebSocket - Connections", "type": "stat", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 30}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "tictactoe_websocket_connections_active{namespace=\"tictactoe-${schema.spec.environment}\"} or vector(0)"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}}},
+                {"id": 24, "title": "Online Games - Created/hr", "type": "timeseries", "gridPos": {"h": 6, "w": 12, "x": 0, "y": 36}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "increase(tictactoe_online_games_created_total{namespace=\"tictactoe-${schema.spec.environment}\"}[1h])", "legendFormat": "Games Created"}]},
+                {"id": 25, "title": "WebSocket - Messages/sec", "type": "timeseries", "gridPos": {"h": 6, "w": 12, "x": 12, "y": 36}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(rate(tictactoe_websocket_messages_total{namespace=\"tictactoe-${schema.spec.environment}\"}[5m])) by (direction)", "legendFormat": "{{direction}}"}]}
               ]
             }
 
@@ -515,14 +521,17 @@ spec:
               "time": {"from": "now-24h", "to": "now"},
               "refresh": "30s",
               "panels": [
-                {"id": 1, "title": "🏆 Leaderboard - Top Players (24h)", "type": "table", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "topk(10, sum by (player) (tictactoe_wins_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}))", "legendFormat": "{{player}}", "instant": true, "format": "table"}], "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"player": "Player", "Value": "Wins"}}}]},
-                {"id": 2, "title": "📊 Total Games (24h)", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}[24h])) or vector(0)"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "blue", "value": null}]}}}},
-                {"id": 3, "title": "🎯 Total Wins (24h)", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", result=\"win\", player!~\"Synthetic.*\"}[24h])) or vector(0)"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}}},
-                {"id": 4, "title": "🤝 Total Ties (24h)", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_ties_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}[24h])) or vector(0)"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "yellow", "value": null}]}}}},
-                {"id": 5, "title": "🎲 Winning Patterns (24h)", "type": "piechart", "gridPos": {"h": 8, "w": 8, "x": 12, "y": 4}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum by (pattern) (increase(tictactoe_wins_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}[24h]))", "legendFormat": "{{pattern}}"}], "options": {"legend": {"displayMode": "table", "placement": "right"}}},
-                {"id": 6, "title": "📈 Games Over Time", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", result=\"win\", player!~\"Synthetic.*\"}[1h])) or vector(0)", "legendFormat": "Wins/hr"}, {"refId": "B", "expr": "sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", result=\"tie\", player!~\"Synthetic.*\"}[1h])) or vector(0)", "legendFormat": "Ties/hr"}], "fieldConfig": {"defaults": {"unit": "short"}}},
-                {"id": 7, "title": "🔥 Current Win Streaks", "type": "bargauge", "gridPos": {"h": 8, "w": 8, "x": 12, "y": 12}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "topk(5, tictactoe_current_win_streak{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"} > 0)", "legendFormat": "{{player}}"}], "options": {"orientation": "horizontal", "displayMode": "gradient"}, "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}, "min": 0, "max": 10}}},
-                {"id": 8, "title": "👥 Most Active Players (24h)", "type": "bargauge", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "topk(10, sum by (player) (increase(tictactoe_player_games_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}[24h])))", "legendFormat": "{{player}}"}], "options": {"orientation": "horizontal", "displayMode": "gradient"}, "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlPu"}}}}
+                {"id": 1, "title": "🏆 Leaderboard - Top Players", "type": "table", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "topk(10, sum by (player) (tictactoe_wins_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}))", "legendFormat": "{{player}}", "instant": true, "format": "table"}], "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"player": "Player", "Value": "Wins"}}}]},
+                {"id": 2, "title": "📊 Total Games", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\"}[24h]))) or vector(0)"}], "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "blue", "value": null}]}}}},
+                {"id": 3, "title": "🎯 Total Wins", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", result=\"win\"}[24h]))) or vector(0)"}], "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}}},
+                {"id": 4, "title": "🤝 Total Ties", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(sum(increase(tictactoe_ties_total{namespace=\"tictactoe-${schema.spec.environment}\"}[24h]))) or vector(0)"}], "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "yellow", "value": null}]}}}},
+                {"id": 5, "title": "🎮 Online Active", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 12, "y": 4}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "tictactoe_online_games_active{namespace=\"tictactoe-${schema.spec.environment}\"} or vector(0)"}], "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "purple", "value": null}]}}}},
+                {"id": 6, "title": "🔗 Online Created", "type": "stat", "gridPos": {"h": 4, "w": 4, "x": 16, "y": 4}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(increase(tictactoe_online_games_created_total{namespace=\"tictactoe-${schema.spec.environment}\"}[24h])) or vector(0)"}], "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "orange", "value": null}]}}}},
+                {"id": 7, "title": "🌐 By Mode", "type": "piechart", "gridPos": {"h": 4, "w": 4, "x": 20, "y": 4}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(sum by (mode) (increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", mode=~\".+\"}[24h]))) > 0", "legendFormat": "{{mode}}"}], "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "pieType": "donut"}, "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "palette-classic"}}}},
+                {"id": 8, "title": "📈 Games Over Time", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(sum(increase(tictactoe_games_total{namespace=\"tictactoe-${schema.spec.environment}\", result=\"win\"}[1h])))", "legendFormat": "Wins/hr"}, {"refId": "B", "expr": "round(sum(increase(tictactoe_ties_total{namespace=\"tictactoe-${schema.spec.environment}\"}[1h])))", "legendFormat": "Ties/hr"}], "fieldConfig": {"defaults": {"decimals": 0, "unit": "short"}}},
+                {"id": 9, "title": "🎲 Winning Patterns", "type": "piechart", "gridPos": {"h": 8, "w": 6, "x": 12, "y": 8}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(sum by (pattern) (increase(tictactoe_wins_total{namespace=\"tictactoe-${schema.spec.environment}\", pattern=~\".+\"}[24h]))) > 0", "legendFormat": "{{pattern}}"}], "options": {"legend": {"displayMode": "list", "placement": "right"}, "pieType": "pie"}, "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "palette-classic"}}}},
+                {"id": 10, "title": "🔥 Win Streaks", "type": "bargauge", "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "topk(5, tictactoe_current_win_streak{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"} > 0)", "legendFormat": "{{player}}"}], "options": {"orientation": "horizontal", "displayMode": "gradient"}, "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "continuous-GrYlRd"}, "min": 0, "max": 10}}},
+                {"id": 11, "title": "👥 Most Active Players", "type": "bargauge", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}, "datasource": {"type": "prometheus", "uid": "ef58nw8xkcf7kf"}, "targets": [{"refId": "A", "expr": "round(topk(10, sum by (player) (increase(tictactoe_player_games_total{namespace=\"tictactoe-${schema.spec.environment}\", player!~\"Synthetic.*\"}[24h]))))", "legendFormat": "{{player}}"}], "options": {"orientation": "horizontal", "displayMode": "gradient"}, "fieldConfig": {"defaults": {"decimals": 0, "color": {"mode": "continuous-BlPu"}}}}
               ]
             }
 
@@ -606,3 +615,71 @@ spec:
           - port: 9091
             targetPort: 9091
             name: metrics
+
+    # ArgoCD PostSync Hook - Smoke Test
+    - id: postSyncSmokeTest
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: post-sync-smoke-test
+          namespace: ${appNamespace.metadata.name}
+          annotations:
+            argocd.argoproj.io/hook: PostSync
+            argocd.argoproj.io/hook-delete-policy: HookSucceeded
+        spec:
+          ttlSecondsAfterFinished: 300
+          backoffLimit: 0
+          template:
+            spec:
+              restartPolicy: Never
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                runAsGroup: 65532
+              containers:
+              - name: smoke-test
+                image: curlimages/curl:8.17.0
+                command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Running post-sync smoke tests..."
+                  sleep 10
+                  
+                  echo "Test 1: Frontend health check"
+                  curl -sf http://tictactoe.${appNamespace.metadata.name}.svc.cluster.local/healthz || exit 1
+                  echo " ✓ Frontend OK"
+                  
+                  echo "Test 2: Backend health check"
+                  curl -sf http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/healthz || exit 1
+                  echo " ✓ Backend OK"
+                  
+                  echo "Test 3: Game API responds"
+                  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/game)
+                  [ "$STATUS" = "405" ] || exit 1
+                  echo " ✓ API OK"
+                  
+                  echo "Test 4: Online game create"
+                  RESP=$(curl -sf -X POST http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/game/create -d '{"player1":"SmokeTest"}' -H 'Content-Type: application/json')
+                  GAME_ID=$(echo "$RESP" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+                  [ -n "$GAME_ID" ] || exit 1
+                  echo " ✓ Online create OK"
+                  
+                  echo "Test 5: Online game get"
+                  curl -sf "http://tictactoe-backend.${appNamespace.metadata.name}.svc.cluster.local/api/game/get?id=$GAME_ID" || exit 1
+                  echo " ✓ Online get OK"
+                  
+                  echo "All smoke tests passed!"
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop: [ALL]
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 16Mi
+                  limits:
+                    cpu: 100m
+                    memory: 64Mi
