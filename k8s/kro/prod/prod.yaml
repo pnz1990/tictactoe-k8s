@@ -4,7 +4,7 @@ metadata:
   name: tictactoe-prod
 spec:
   environment: prod
-  imageTag: "e86c067"
+  imageTag: "66c0262"
   replicas: 3
   backendReplicas: 3
   cpuRequest: "100m"
