@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://opencost.github.io/opencost-helm-chart
     chart: opencost
-    targetRevision: 1.42.0
+    targetRevision: 2.4.1
     helm:
       values: |
         opencost:
@@ -18,12 +18,15 @@ spec:
               spot_data_region: ap-northeast-2
           prometheus:
             internal:
-              enabled: false
-            external:
               enabled: true
-              url: https://aps-workspaces.ap-northeast-2.amazonaws.com/workspaces/ws-62f6ab4b-6a1c-4971-806e-dee13a1e1e95
+              serviceName: opencost-prometheus-server
+              namespaceName: opencost
+              port: 80
           ui:
             enabled: true
+        serviceAccount:
+          create: true
+          name: opencost
   destination:
     server: arn:aws:eks:ap-northeast-2:569190534191:cluster/unique-lofi-goose
     namespace: opencost
