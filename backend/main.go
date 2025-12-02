@@ -445,6 +445,10 @@ func (g *OnlineGame) broadcast(msg WSMessage) {
 }
 
 func (g *OnlineGame) handleMessage(msg WSMessage) {
+	if msg.Type == "reaction" {
+		g.broadcast(msg)
+		return
+	}
 	if msg.Type != "move" || g.Status != "playing" {
 		return
 	}

@@ -92,6 +92,13 @@
     @keyframes flip { 0% { transform: rotateY(0); } 100% { transform: rotateY(var(--flip-end)); } }
     .coin-result { font-size: 1.5rem; margin: 20px 0; opacity: 0; transition: opacity 0.3s; }
     .coin-result.show { opacity: 1; }
+    .reaction-btn { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 1.5rem; padding: 0; }
+    .reaction-picker { position: fixed; bottom: 80px; right: 20px; background: rgba(22,33,62,0.95); border: 2px solid #e94560; border-radius: 15px; padding: 10px; display: none; }
+    .reaction-picker.show { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .reaction-picker button { width: 45px; height: 45px; font-size: 1.5rem; padding: 0; margin: 0; background: rgba(255,255,255,0.1); border: none; border-radius: 10px; cursor: pointer; }
+    .reaction-picker button:hover { background: rgba(233,69,96,0.3); transform: scale(1.1); }
+    .floating-reaction { position: fixed; font-size: 4rem; pointer-events: none; animation: floatUp 2s ease-out forwards; z-index: 1000; }
+    @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-150px) scale(1.5); } }
   </style>
 </head>
 <body>
@@ -242,6 +249,18 @@
       <div class="board" id="board"></div>
       <button onclick="resetGame()">New Game</button>
       <button class="secondary" onclick="backToMenu()">Exit</button>
+      <button class="reaction-btn" onclick="toggleReactionPicker()">😀</button>
+      <div class="reaction-picker" id="reaction-picker">
+        <button onclick="sendReaction('😀')">😀</button>
+        <button onclick="sendReaction('😂')">😂</button>
+        <button onclick="sendReaction('😮')">😮</button>
+        <button onclick="sendReaction('😢')">😢</button>
+        <button onclick="sendReaction('😡')">😡</button>
+        <button onclick="sendReaction('🎉')">🎉</button>
+        <button onclick="sendReaction('👍')">👍</button>
+        <button onclick="sendReaction('👎')">👎</button>
+        <button onclick="sendReaction('🔥')">🔥</button>
+      </div>
     </div>
   </div>
 
@@ -298,8 +317,31 @@
       if (ws) { ws.close(); ws = null; }
       gameId = '';
       isAIGame = false;
+      document.getElementById('reaction-picker').classList.remove('show');
       window.history.replaceState({}, '', window.location.pathname);
       showScreen('mode-select');
+    }
+
+    function toggleReactionPicker() {
+      document.getElementById('reaction-picker').classList.toggle('show');
+    }
+
+    function sendReaction(emoji) {
+      document.getElementById('reaction-picker').classList.remove('show');
+      showFloatingReaction(emoji);
+      if (gameMode === 'online' && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'reaction', payload: {emoji}}));
+      }
+    }
+
+    function showFloatingReaction(emoji) {
+      const el = document.createElement('div');
+      el.className = 'floating-reaction';
+      el.textContent = emoji;
+      el.style.left = (Math.random() * 60 + 20) + '%';
+      el.style.bottom = '100px';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2000);
     }
 
     function startLocalGame() {
@@ -480,6 +522,8 @@
           gameMode = 'online';
           firstPlayer = msg.payload.firstPlayer || 'X';
           showOnlineCoinFlip();
+        } else if (msg.type === 'reaction') {
+          showFloatingReaction(msg.payload.emoji);
         }
       };
       ws.onclose = () => { if (gameMode === 'online' && !over) console.log('Connection lost'); };
