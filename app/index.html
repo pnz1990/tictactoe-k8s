@@ -83,6 +83,22 @@
     .profile-header h2 { color: #00fff5; margin: 10px 0; }
     .clickable { cursor: pointer; text-decoration: underline; }
     .clickable:hover { color: #00fff5; }
+    .coin-flip { text-align: center; }
+    .coin { width: 120px; height: 120px; margin: 30px auto; position: relative; transform-style: preserve-3d; }
+    .coin.flipping { animation: flip 2s ease-out forwards; }
+    .coin-face { position: absolute; width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: bold; backface-visibility: hidden; border: 4px solid; }
+    .coin-x { background: linear-gradient(135deg, #0a2a3a, #0f3460); color: #00fff5; border-color: #00fff5; box-shadow: 0 0 30px rgba(0,255,245,0.5); }
+    .coin-o { background: linear-gradient(135deg, #2a0a1a, #3e1620); color: #e94560; border-color: #e94560; box-shadow: 0 0 30px rgba(233,69,96,0.5); transform: rotateY(180deg); }
+    @keyframes flip { 0% { transform: rotateY(0); } 100% { transform: rotateY(var(--flip-end)); } }
+    .coin-result { font-size: 1.5rem; margin: 20px 0; opacity: 0; transition: opacity 0.3s; }
+    .coin-result.show { opacity: 1; }
+    .reaction-btn { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 1.5rem; padding: 0; }
+    .reaction-picker { position: fixed; bottom: 80px; right: 20px; background: rgba(22,33,62,0.95); border: 2px solid #e94560; border-radius: 15px; padding: 10px; display: none; }
+    .reaction-picker.show { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .reaction-picker button { width: 45px; height: 45px; font-size: 1.5rem; padding: 0; margin: 0; background: rgba(255,255,255,0.1); border: none; border-radius: 10px; cursor: pointer; }
+    .reaction-picker button:hover { background: rgba(233,69,96,0.3); transform: scale(1.1); }
+    .floating-reaction { position: fixed; font-size: 4rem; pointer-events: none; animation: floatUp 2s ease-out forwards; z-index: 1000; }
+    @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-150px) scale(1.5); } }
   </style>
 </head>
 <body>
@@ -90,7 +106,7 @@
   <div class="container">
     <!-- Mode Selection -->
     <div id="mode-select" class="mode-select">
-      <h1>⚡ Tic Tac Toe v3.1 ⚡</h1>
+      <h1>⚡ Tic Tac Toe v3.2 ⚡</h1>
       <p style="margin-bottom: 20px; color: #e94560;">Choose game mode</p>
       <button class="mode-btn" onclick="selectMode('local')">🎮 Local Game<br><small>Two players, one device</small></button>
       <button class="mode-btn" onclick="selectMode('create')">🌐 Create Online Game<br><small>Get a link to share</small></button>
@@ -156,6 +172,17 @@
       <button class="secondary" onclick="backToMenu()">Back</button>
     </div>
 
+    <!-- Coin Flip -->
+    <div id="coin-flip" class="coin-flip hidden">
+      <h1>⚡ Coin Flip ⚡</h1>
+      <p style="color: #e94560;">Who goes first?</p>
+      <div class="coin" id="coin">
+        <div class="coin-face coin-x">X</div>
+        <div class="coin-face coin-o">O</div>
+      </div>
+      <div class="coin-result" id="coin-result"></div>
+    </div>
+
     <!-- Local vs Player -->
     <div id="local-vs-player" class="setup hidden">
       <h1>⚡ Two Players ⚡</h1>
@@ -213,7 +240,7 @@
 
     <!-- Game Board -->
     <div id="game" class="hidden">
-      <h1 id="title">⚡ Tic Tac Toe v3.1 ⚡</h1>
+      <h1 id="title">⚡ Tic Tac Toe v3.2 ⚡</h1>
       <div class="players">
         <span class="x-player">X: <span id="p1display"></span></span>
         <span class="o-player">O: <span id="p2display"></span></span>
@@ -222,6 +249,18 @@
       <div class="board" id="board"></div>
       <button onclick="resetGame()">New Game</button>
       <button class="secondary" onclick="backToMenu()">Exit</button>
+      <button class="reaction-btn" onclick="toggleReactionPicker()">😀</button>
+      <div class="reaction-picker" id="reaction-picker">
+        <button onclick="sendReaction('😀')">😀</button>
+        <button onclick="sendReaction('😂')">😂</button>
+        <button onclick="sendReaction('😮')">😮</button>
+        <button onclick="sendReaction('😢')">😢</button>
+        <button onclick="sendReaction('😡')">😡</button>
+        <button onclick="sendReaction('🎉')">🎉</button>
+        <button onclick="sendReaction('👍')">👍</button>
+        <button onclick="sendReaction('👎')">👎</button>
+        <button onclick="sendReaction('🔥')">🔥</button>
+      </div>
     </div>
   </div>
 
@@ -243,7 +282,7 @@
     const joinCode = urlParams.get('game');
 
     function showScreen(id) {
-      ['mode-select','local-setup','local-vs-player','local-vs-ai','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
+      ['mode-select','local-setup','local-vs-player','local-vs-ai','coin-flip','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
         document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -271,15 +310,39 @@
       isAIGame = true;
       player1 = document.getElementById('ai-player-name').value.trim() || 'Player';
       player2 = 'AI (' + aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1) + ')';
-      startGame();
+      doCoinFlip();
     }
 
     function backToMenu() {
       if (ws) { ws.close(); ws = null; }
       gameId = '';
       isAIGame = false;
+      document.getElementById('reaction-picker').classList.remove('show');
       window.history.replaceState({}, '', window.location.pathname);
       showScreen('mode-select');
+    }
+
+    function toggleReactionPicker() {
+      document.getElementById('reaction-picker').classList.toggle('show');
+    }
+
+    function sendReaction(emoji) {
+      document.getElementById('reaction-picker').classList.remove('show');
+      if (gameMode === 'online' && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'reaction', payload: {emoji}}));
+      } else {
+        showFloatingReaction(emoji);
+      }
+    }
+
+    function showFloatingReaction(emoji) {
+      const el = document.createElement('div');
+      el.className = 'floating-reaction';
+      el.textContent = emoji;
+      el.style.left = (Math.random() * 60 + 20) + '%';
+      el.style.bottom = '100px';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2000);
     }
 
     function startLocalGame() {
@@ -287,7 +350,57 @@
       isAIGame = false;
       player1 = document.getElementById('p1name').value.trim() || 'Player 1';
       player2 = document.getElementById('p2name').value.trim() || 'Player 2';
-      startGame();
+      doCoinFlip();
+    }
+
+    let firstPlayer = 'X';
+
+    function doCoinFlip() {
+      showScreen('coin-flip');
+      const coin = document.getElementById('coin');
+      const result = document.getElementById('coin-result');
+      coin.classList.remove('flipping');
+      result.classList.remove('show');
+      result.textContent = '';
+      
+      // Random: X or O goes first
+      const xFirst = Math.random() < 0.5;
+      firstPlayer = xFirst ? 'X' : 'O';
+      
+      // X = 0deg (or 720), O = 180deg (or 900)
+      const rotations = xFirst ? 720 : 900;
+      coin.style.setProperty('--flip-end', rotations + 'deg');
+      
+      setTimeout(() => coin.classList.add('flipping'), 100);
+      
+      setTimeout(() => {
+        const winner = xFirst ? player1 : player2;
+        result.innerHTML = '<span style="color:' + (xFirst ? '#00fff5' : '#e94560') + '">' + winner + '</span> goes first!';
+        result.classList.add('show');
+        setTimeout(() => startGame(), 1500);
+      }, 2200);
+    }
+
+    function showOnlineCoinFlip() {
+      showScreen('coin-flip');
+      const coin = document.getElementById('coin');
+      const result = document.getElementById('coin-result');
+      coin.classList.remove('flipping');
+      result.classList.remove('show');
+      result.textContent = '';
+      
+      const xFirst = firstPlayer === 'X';
+      const rotations = xFirst ? 720 : 900;
+      coin.style.setProperty('--flip-end', rotations + 'deg');
+      
+      setTimeout(() => coin.classList.add('flipping'), 100);
+      
+      setTimeout(() => {
+        const winner = xFirst ? player1 : player2;
+        result.innerHTML = '<span style="color:' + (xFirst ? '#00fff5' : '#e94560') + '">' + winner + '</span> goes first!';
+        result.classList.add('show');
+        setTimeout(() => startGame(), 1500);
+      }, 2200);
     }
 
     // AI Logic
@@ -369,6 +482,7 @@
         gameId = data.gameId;
         player1 = name;
         myRole = 'X';
+        firstPlayer = data.firstPlayer || 'X';
         const link = window.location.origin + window.location.pathname + '?game=' + gameId;
         document.getElementById('game-link').value = link;
         document.getElementById('game-code').textContent = gameId;
@@ -393,8 +507,9 @@
         player2 = name;
         myRole = 'O';
         gameMode = 'online';
+        firstPlayer = data.firstPlayer || 'X';
         connectWebSocket();
-        startGame();
+        showOnlineCoinFlip();
       } catch (e) { alert('Failed to join game'); }
     }
 
@@ -406,7 +521,10 @@
         else if (msg.type === 'game_start') {
           player2 = msg.payload.player2;
           gameMode = 'online';
-          startGame();
+          firstPlayer = msg.payload.firstPlayer || 'X';
+          showOnlineCoinFlip();
+        } else if (msg.type === 'reaction') {
+          showFloatingReaction(msg.payload.emoji);
         }
       };
       ws.onclose = () => { if (gameMode === 'online' && !over) console.log('Connection lost'); };
@@ -441,10 +559,11 @@
 
     function initBoard() {
       if (gameMode === 'local') board = Array(9).fill('');
-      turn = 'X';
+      turn = firstPlayer;
       over = false;
       renderBoard();
       updateStatus();
+      if (isAIGame && turn === 'O') setTimeout(makeAIMove, 500);
     }
 
     function renderBoard() {
