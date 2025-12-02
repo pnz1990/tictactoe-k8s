@@ -70,6 +70,19 @@
     .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
     .tab { padding: 10px 20px; background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 20px; cursor: pointer; }
     .tab.active { background: #e94560; }
+    .replay-controls { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 20px 0; }
+    .replay-controls button { padding: 10px 15px; font-size: 1.2rem; }
+    .replay-info { text-align: center; margin: 10px 0; color: #888; }
+    .game-item { background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 8px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .game-item:hover { background: rgba(255,255,255,0.1); }
+    .game-item .info { flex: 1; }
+    .game-item .actions { display: flex; gap: 8px; }
+    .game-item .actions button { padding: 6px 12px; font-size: 0.8rem; }
+    .profile { width: 100%; max-width: 500px; }
+    .profile-header { text-align: center; margin-bottom: 20px; }
+    .profile-header h2 { color: #00fff5; margin: 10px 0; }
+    .clickable { cursor: pointer; text-decoration: underline; }
+    .clickable:hover { color: #00fff5; }
   </style>
 </head>
 <body>
@@ -99,13 +112,39 @@
       </div>
       <div id="tab-stats" class="hidden">
         <div class="stats-grid" id="full-stats"></div>
-        <h3 style="margin-top: 20px; color: #e94560;">Winning Patterns</h3>
         <div id="patterns-chart"></div>
       </div>
       <div id="tab-recent" class="hidden recent-games">
         <div id="recent-games-list"></div>
       </div>
       <button class="secondary" onclick="backToMenu()" style="margin-top: 20px;">Back to Menu</button>
+    </div>
+
+    <!-- Player Profile -->
+    <div id="profile-screen" class="profile hidden">
+      <div class="profile-header">
+        <h1>👤 Player Profile</h1>
+        <h2 id="profile-name"></h2>
+      </div>
+      <div class="stats-grid" id="profile-stats"></div>
+      <h3 style="color: #e94560; margin: 20px 0 10px;">Game History</h3>
+      <div id="profile-games"></div>
+      <button class="secondary" onclick="backToMenu()" style="margin-top: 20px;">Back to Menu</button>
+    </div>
+
+    <!-- Game Replay -->
+    <div id="replay-screen" class="hidden">
+      <h1>🎬 Game Replay</h1>
+      <div class="replay-info" id="replay-info"></div>
+      <div class="board" id="replay-board"></div>
+      <div class="replay-controls">
+        <button onclick="replayStep(-1)">◀</button>
+        <button onclick="toggleReplay()" id="replay-play-btn">▶</button>
+        <button onclick="replayStep(1)">▶</button>
+      </div>
+      <div class="replay-info">Move <span id="replay-move">0</span>/<span id="replay-total">0</span></div>
+      <button onclick="shareReplay()" style="margin-top: 10px;">🔗 Share Replay</button>
+      <button class="secondary" onclick="backToMenu()" style="margin-top: 10px;">Back to Menu</button>
     </div>
 
     <!-- Local Setup -->
@@ -184,7 +223,7 @@
     }
 
     function showScreen(id) {
-      ['mode-select','local-setup','online-create','online-waiting','online-join','game','leaderboard-screen'].forEach(s => 
+      ['mode-select','local-setup','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
         document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -410,7 +449,7 @@
         tbody.innerHTML = data.players.length ? data.players.map((p, i) => `
           <tr>
             <td class="rank">${i + 1}</td>
-            <td class="player">${p.player}</td>
+            <td class="player clickable" onclick="showProfile('${p.player}')">${p.player}</td>
             <td class="wins">${p.wins}</td>
             <td>${p.wins}/${p.losses}/${p.ties}</td>
             <td class="winrate">${p.winRate.toFixed(1)}%</td>
@@ -458,12 +497,132 @@
         const res = await fetch(API_URL + '/api/recent');
         const games = await res.json();
         document.getElementById('recent-games-list').innerHTML = games.length ? games.map(g => `
-          <div class="recent-game">
-            <div class="players">${g.player1} vs ${g.player2}</div>
-            <div class="result">${g.isTie ? '🤝 Tie' : '🏆 ' + g.winner + ' won'}</div>
+          <div class="game-item" onclick="loadReplay('${g.gameId}')">
+            <div class="info">
+              <div class="players"><span class="clickable" onclick="event.stopPropagation();showProfile('${g.player1}')">${g.player1}</span> vs <span class="clickable" onclick="event.stopPropagation();showProfile('${g.player2}')">${g.player2}</span></div>
+              <div class="result">${g.isTie ? '🤝 Tie' : '🏆 ' + g.winner + ' won'}</div>
+            </div>
+            <button onclick="event.stopPropagation();loadReplay('${g.gameId}')">▶ Replay</button>
           </div>
         `).join('') : '<p style="color: #888; text-align: center;">No online games yet. Be the first!</p>';
       } catch (e) { console.error('Failed to load recent games', e); }
+    }
+
+    // Replay functionality
+    let replayData = null, replayIndex = 0, replayInterval = null;
+
+    async function loadReplay(gameId) {
+      try {
+        const res = await fetch(API_URL + '/api/replay?id=' + gameId);
+        if (!res.ok) { alert('Game not found or no replay data'); return; }
+        replayData = await res.json();
+        replayIndex = 0;
+        if (replayInterval) clearInterval(replayInterval);
+        showScreen('replay-screen');
+        document.getElementById('replay-info').innerHTML = `
+          <span class="clickable" onclick="showProfile('${replayData.player1}')">${replayData.player1}</span> vs 
+          <span class="clickable" onclick="showProfile('${replayData.player2}')">${replayData.player2}</span><br>
+          <small>${replayData.isTie ? 'Tie' : replayData.winner + ' won'} • ${new Date(replayData.timestamp).toLocaleDateString()}</small>
+        `;
+        document.getElementById('replay-total').textContent = replayData.moves?.length || 0;
+        renderReplayBoard();
+      } catch (e) { alert('Failed to load replay'); }
+    }
+
+    function renderReplayBoard() {
+      const board = Array(9).fill('');
+      for (let i = 0; i < replayIndex && replayData.moves; i++) {
+        board[replayData.moves[i].index] = replayData.moves[i].player;
+      }
+      const el = document.getElementById('replay-board');
+      el.innerHTML = '';
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (board[i]) {
+          cell.textContent = board[i];
+          cell.classList.add(board[i].toLowerCase());
+        }
+        el.appendChild(cell);
+      }
+      document.getElementById('replay-move').textContent = replayIndex;
+    }
+
+    function replayStep(dir) {
+      if (!replayData?.moves) return;
+      replayIndex = Math.max(0, Math.min(replayData.moves.length, replayIndex + dir));
+      renderReplayBoard();
+    }
+
+    function toggleReplay() {
+      if (replayInterval) {
+        clearInterval(replayInterval);
+        replayInterval = null;
+        document.getElementById('replay-play-btn').textContent = '▶';
+      } else {
+        if (replayIndex >= (replayData?.moves?.length || 0)) replayIndex = 0;
+        document.getElementById('replay-play-btn').textContent = '⏸';
+        replayInterval = setInterval(() => {
+          if (replayIndex >= replayData.moves.length) {
+            clearInterval(replayInterval);
+            replayInterval = null;
+            document.getElementById('replay-play-btn').textContent = '▶';
+          } else {
+            replayIndex++;
+            renderReplayBoard();
+          }
+        }, 800);
+      }
+    }
+
+    function shareReplay() {
+      if (!replayData) return;
+      const url = window.location.origin + window.location.pathname + '?replay=' + replayData.gameId;
+      navigator.clipboard.writeText(url).then(() => alert('Replay link copied!')).catch(() => {
+        prompt('Copy this link:', url);
+      });
+    }
+
+    // Profile functionality
+    async function showProfile(playerName) {
+      showScreen('profile-screen');
+      document.getElementById('profile-name').textContent = playerName;
+      document.getElementById('profile-stats').innerHTML = '<div class="stat-card"><div class="value">...</div><div class="label">Loading</div></div>';
+      document.getElementById('profile-games').innerHTML = '';
+      
+      try {
+        const [statsRes, gamesRes] = await Promise.all([
+          fetch(API_URL + '/api/player?player=' + encodeURIComponent(playerName)),
+          fetch(API_URL + '/api/player/games?player=' + encodeURIComponent(playerName))
+        ]);
+        const stats = await statsRes.json();
+        const games = await gamesRes.json();
+        
+        document.getElementById('profile-stats').innerHTML = `
+          <div class="stat-card"><div class="value">${stats.wins}</div><div class="label">Wins</div></div>
+          <div class="stat-card"><div class="value">${stats.losses}</div><div class="label">Losses</div></div>
+          <div class="stat-card"><div class="value">${stats.ties}</div><div class="label">Ties</div></div>
+          <div class="stat-card"><div class="value">${stats.totalGames}</div><div class="label">Games</div></div>
+          <div class="stat-card"><div class="value">${stats.winRate?.toFixed(1) || 0}%</div><div class="label">Win Rate</div></div>
+          <div class="stat-card"><div class="value">${stats.winStreak || 0}</div><div class="label">Streak</div></div>
+        `;
+        
+        document.getElementById('profile-games').innerHTML = games.length ? games.map(g => `
+          <div class="game-item" onclick="loadReplay('${g.gameId}')">
+            <div class="info">
+              <div class="players">vs ${g.player1 === playerName ? g.player2 : g.player1}</div>
+              <div class="result">${g.isTie ? '🤝 Tie' : (g.winner === playerName ? '🏆 Won' : '❌ Lost')}</div>
+            </div>
+            <button onclick="event.stopPropagation();loadReplay('${g.gameId}')">▶</button>
+          </div>
+        `).join('') : '<p style="color: #888;">No online games yet</p>';
+      } catch (e) { console.error('Failed to load profile', e); }
+    }
+
+    // Check URL for replay link
+    const replayParam = urlParams.get('replay');
+    if (replayParam) {
+      loadReplay(replayParam);
     }
   </script>
 </body>
