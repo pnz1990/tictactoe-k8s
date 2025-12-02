@@ -214,13 +214,10 @@
     
     let gameMode = 'local', board = [], turn = 'X', over = false, player1 = '', player2 = '', myRole = '', gameId = '', ws = null;
 
-    // Check URL for game code
+    // Check URL parameters
     const urlParams = new URLSearchParams(window.location.search);
+    const replayParam = urlParams.get('replay');
     const joinCode = urlParams.get('game');
-    if (joinCode) {
-      document.getElementById('join-code').value = joinCode;
-      selectMode('join');
-    }
 
     function showScreen(id) {
       ['mode-select','local-setup','online-create','online-waiting','online-join','game','leaderboard-screen','profile-screen','replay-screen'].forEach(s => 
@@ -619,10 +616,12 @@
       } catch (e) { console.error('Failed to load profile', e); }
     }
 
-    // Check URL for replay link
-    const replayParam = urlParams.get('replay');
+    // Handle URL parameters - replay takes priority over join
     if (replayParam) {
       loadReplay(replayParam);
+    } else if (joinCode) {
+      document.getElementById('join-code').value = joinCode;
+      selectMode('join');
     }
   </script>
 </body>
