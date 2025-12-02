@@ -5,6 +5,22 @@
 
 A production-ready reference application demonstrating modern DevOps and Kubernetes best practices. This Tic Tac Toe game serves as a template for building secure, scalable, and maintainable containerized applications with business metrics.
 
+## EKS Capabilities
+
+This project uses [EKS Capabilities](https://docs.aws.amazon.com/eks/latest/userguide/capabilities.html) - fully managed cluster features that run **in EKS infrastructure**, not on worker nodes. AWS handles installation, maintenance, scaling, and security patching.
+
+| Capability | Purpose | How to Use |
+|------------|---------|------------|
+| **ACK** (AWS Controllers for Kubernetes) | Manage AWS resources via K8s CRs | `kubectl apply` DynamoDB Tables, IAM Roles, etc. |
+| **Argo CD** | GitOps continuous deployment | `kubectl apply` Application CRs to `argocd` namespace |
+| **kro** (Kube Resource Orchestrator) | Custom K8s APIs / resource composition | `kubectl apply` ResourceGraphDefinitions |
+
+**Key Points:**
+- No controller pods run in your cluster - AWS manages them externally
+- CRDs are available but controllers run in AWS infrastructure
+- Interact via standard `kubectl` commands and Kubernetes manifests
+- All capabilities are independent and opt-in per cluster
+
 ## Managed AWS Services
 
 This project uses the following AWS managed services:
@@ -13,8 +29,7 @@ This project uses the following AWS managed services:
 |---------|-------------|---------|
 | **Amazon Managed Grafana (AMG)** | `g-8f648e108c` | Dashboard visualization |
 | **Amazon Managed Prometheus (AMP)** | `ws-62f6ab4b-6a1c-4971-806e-dee13a1e1e95` | Metrics storage |
-| **Amazon EKS** | `unique-lofi-goose` | Kubernetes cluster |
-| **AWS-managed ArgoCD** | Managed service | GitOps continuous deployment |
+| **Amazon EKS** | `unique-lofi-goose` | Kubernetes cluster (v1.34) |
 | **Amazon DynamoDB** | `tictactoe-games-{env}` | Game state persistence |
 
 **Note:** ArgoCD, Grafana, and Prometheus are AWS-managed services. You cannot access their logs, configurations, or internal resources directly. All management is done through:
